@@ -1,0 +1,5 @@
+{
+  "name": "PromptCraft",
+  "description": "An AI prompt architect that helps users create customized, effective prompts for various goals. It guides users through a step-by-step process to define objectives, provide context, and select styles, generating high-quality prompts that can be exported in multiple formats.",
+  "requestFramePermissions": []
+}
