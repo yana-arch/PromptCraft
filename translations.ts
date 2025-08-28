@@ -53,7 +53,9 @@ export const translations = {
         textToSummarize: { label: 'Text to Summarize', placeholder: 'Paste the article, paper, or text here...', tooltip: 'The full text content you want to condense.' },
         summaryLength: { label: 'Desired Summary Length', placeholder: 'e.g., "Three paragraphs", "Five bullet points"', tooltip: 'Specify how long or detailed the summary should be.' },
         focus: { label: 'Key Focus Area (Optional)', placeholder: 'e.g., "Focus on the methodology and results"', tooltip: 'Tell the AI which parts of the text are most important to include in the summary.' },
-        customGoal: { label: 'Your Custom Goal', placeholder: 'Describe in detail what you want the AI to do...', tooltip: 'Be as specific as possible about your objective, context, and desired output.' }
+        custom_target: { label: 'Target AI / Audience', placeholder: 'e.g., "Claude 3 Opus", "A senior data scientist"', tooltip: 'Specify who or what will be executing this prompt. This helps tailor the language and instructions.' },
+        custom_context: { label: 'Documentation / Context (Optional)', placeholder: 'Paste any relevant documentation, API schemas, or background information here...', tooltip: 'Provide background information that the target AI/audience needs to understand the task.' },
+        custom_tasks: { label: 'Goals / Tasks to Perform', placeholder: 'List the specific actions or objectives. e.g., "1. Analyze the provided data.\n2. Create a summary report.\n3. Output in JSON format."', tooltip: 'Clearly define the work to be done. You can list multiple steps or goals.', aiAssistTooltip: 'Uses AI to generate a list of tasks based on your Target and Context.' },
     },
     styles: {
         title: 'Prompt Style',
@@ -91,6 +93,8 @@ export const translations = {
         load: 'Load',
         delete: 'Delete',
         clearAll: 'Clear All',
+        aiAssist: 'AI Assist',
+        aiGenerating: 'Generating...',
     },
     output: {
         title: 'Your Generated Prompt',
@@ -120,6 +124,14 @@ export const translations = {
         noResults: 'No matching prompts found.',
         copied: 'Copied!',
         aiImprovedPrompt: 'AI-Improved Prompt',
+        foldersTitle: 'Folders',
+        addFolder: 'New Folder',
+        allPrompts: 'All Prompts',
+        uncategorized: 'Uncategorized',
+        moveTo: 'Move to...',
+        renameFolder: 'Rename Folder',
+        deleteFolder: 'Delete Folder',
+        deleteFolderConfirm: 'Are you sure you want to delete this folder? Prompts within it will become uncategorized.',
     },
     settings: {
       title: 'AI Configurations',
@@ -155,6 +167,8 @@ export const translations = {
     },
     errors: {
         improveFailed: 'Sorry, there was an error improving the prompt:',
+        assistFailed: 'Sorry, there was an error generating tasks:',
+        targetRequiredForAssist: 'Please fill in the "Target AI / Audience" field before using AI Assist.',
         networkError: 'Network error',
         authFailed: 'Authentication failed. Check your API Key.',
         endpointNotFound: 'Endpoint not found (404). Check your Base URL.',
@@ -218,7 +232,9 @@ export const translations = {
         textToSummarize: { label: 'Văn bản cần tóm tắt', placeholder: 'Dán bài báo, tài liệu hoặc văn bản vào đây...', tooltip: 'Toàn bộ nội dung văn bản bạn muốn cô đọng.' },
         summaryLength: { label: 'Độ dài tóm tắt mong muốn', placeholder: 'ví dụ: "Ba đoạn văn", "Năm gạch đầu dòng"', tooltip: 'Chỉ định độ dài hoặc chi tiết của bản tóm tắt.' },
         focus: { label: 'Khu vực tập trung chính (Tùy chọn)', placeholder: 'ví dụ: "Tập trung vào phương pháp luận và kết quả"', tooltip: 'Cho AI biết phần nào của văn bản là quan trọng nhất để đưa vào bản tóm tắt.' },
-        customGoal: { label: 'Mục tiêu tùy chỉnh của bạn', placeholder: 'Mô tả chi tiết những gì bạn muốn AI làm...', tooltip: 'Hãy càng cụ thể càng tốt về mục tiêu, bối cảnh và kết quả mong muốn của bạn.' }
+        custom_target: { label: 'AI / Đối tượng mục tiêu', placeholder: 'ví dụ: "Claude 3 Opus", "Một nhà khoa học dữ liệu cấp cao"', tooltip: 'Chỉ định ai hoặc cái gì sẽ thực thi prompt này. Điều này giúp điều chỉnh ngôn ngữ và hướng dẫn.' },
+        custom_context: { label: 'Tài liệu / Bối cảnh (Tùy chọn)', placeholder: 'Dán bất kỳ tài liệu, schema API, hoặc thông tin nền tảng liên quan vào đây...', tooltip: 'Cung cấp thông tin nền tảng mà AI/đối tượng mục tiêu cần để hiểu nhiệm vụ.' },
+        custom_tasks: { label: 'Mục tiêu / Nhiệm vụ cần thực hiện', placeholder: 'Liệt kê các hành động hoặc mục tiêu cụ thể. ví dụ: "1. Phân tích dữ liệu được cung cấp.\n2. Tạo báo cáo tóm tắt.\n3. Xuất ra định dạng JSON."', tooltip: 'Xác định rõ ràng công việc cần thực hiện. Bạn có thể liệt kê nhiều bước hoặc mục tiêu.', aiAssistTooltip: 'Sử dụng AI để tạo danh sách nhiệm vụ dựa trên Đối tượng và Bối cảnh của bạn.' },
     },
     styles: {
         title: 'Phong cách Prompt',
@@ -256,6 +272,8 @@ export const translations = {
         load: 'Tải',
         delete: 'Xóa',
         clearAll: 'Xóa tất cả',
+        aiAssist: 'Hỗ trợ AI',
+        aiGenerating: 'Đang tạo...',
     },
     output: {
         title: 'Prompt đã tạo của bạn',
@@ -285,6 +303,14 @@ export const translations = {
         noResults: 'Không tìm thấy prompt nào phù hợp.',
         copied: 'Đã sao chép!',
         aiImprovedPrompt: 'Prompt được cải thiện bởi AI',
+        foldersTitle: 'Thư mục',
+        addFolder: 'Thư mục mới',
+        allPrompts: 'Tất cả Prompt',
+        uncategorized: 'Chưa phân loại',
+        moveTo: 'Di chuyển đến...',
+        renameFolder: 'Đổi tên thư mục',
+        deleteFolder: 'Xóa thư mục',
+        deleteFolderConfirm: 'Bạn có chắc muốn xóa thư mục này không? Các prompt trong đó sẽ không được phân loại.',
     },
     settings: {
       title: 'Cấu hình AI',
@@ -320,6 +346,8 @@ export const translations = {
     },
     errors: {
         improveFailed: 'Rất tiếc, đã có lỗi khi cải thiện prompt:',
+        assistFailed: 'Rất tiếc, đã có lỗi khi tạo nhiệm vụ:',
+        targetRequiredForAssist: 'Vui lòng điền vào trường "AI / Đối tượng mục tiêu" trước khi sử dụng Hỗ trợ AI.',
         networkError: 'Lỗi mạng',
         authFailed: 'Xác thực thất bại. Kiểm tra API Key của bạn.',
         endpointNotFound: 'Không tìm thấy endpoint (404). Kiểm tra Base URL của bạn.',

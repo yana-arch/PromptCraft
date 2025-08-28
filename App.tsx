@@ -1,8 +1,12 @@
+
+
+
+
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { GoogleGenAI } from "@google/genai";
-import { CATEGORIES, PROMPT_STYLES, TONES, FORMATS, LENGTHS, PROMPT_TECHNIQUES } from './constants';
+import { CATEGORIES, PROMPT_STYLES, TONES, FORMATS, LENGTHS, PROMPT_TECHNIQUES, CUSTOM_GOAL_FIELDS } from './constants';
 import { translations } from './translations';
-import type { Category, Goal, Customizations, PromptObject, HistoryItem, AiConfig } from './types';
+import type { Category, Goal, Customizations, PromptObject, HistoryItem, AiConfig, Folder } from './types';
 
 type Language = 'en' | 'vi';
 
@@ -10,6 +14,14 @@ type Language = 'en' | 'vi';
 const toTitleCase = (str: string) => str.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
 
 const DEFAULT_AI_CONFIG_ID = 'default-gemini';
+
+// FIX: Converted AiSuggestionIcon to a functional component.
+// It was defined as a JSX element but used as a component (<AiSuggestionIcon />), causing a type error.
+const AiSuggestionIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.898 20.562L16.25 22.5l-.648-1.938a2.25 2.25 0 01-1.423-1.423L12.25 18.5l1.938-.648a2.25 2.25 0 011.423-1.423L17.75 15.75l.648 1.938a2.25 2.25 0 011.423 1.423L21.75 19.5l-1.938.648a2.25 2.25 0 01-1.423 1.423z" />
+    </svg>
+);
 
 // Main App Component
 export default function App() {
@@ -26,6 +38,7 @@ export default function App() {
   });
   const [generatedPrompt, setGeneratedPrompt] = useState<PromptObject | null>(null);
   const [promptHistory, setPromptHistory] = useState<HistoryItem[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
 
   // State for dynamic technique UI
   const [fewShotExamples, setFewShotExamples] = useState<{input: string; output: string}[]>([{ input: '', output: '' }]);
@@ -34,6 +47,7 @@ export default function App() {
   // AI Improvement State
   const [isImproving, setIsImproving] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
+  const [isGeneratingTasks, setIsGeneratingTasks] = useState(false);
 
   // UI State
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -61,6 +75,9 @@ export default function App() {
       const storedHistory = localStorage.getItem('promptHistory');
       if (storedHistory) setPromptHistory(JSON.parse(storedHistory));
       
+      const storedFolders = localStorage.getItem('promptFolders');
+      if (storedFolders) setFolders(JSON.parse(storedFolders));
+
       const storedConfigs = localStorage.getItem('aiConfigs');
       if(storedConfigs) setAiConfigs(JSON.parse(storedConfigs));
 
@@ -76,12 +93,13 @@ export default function App() {
   useEffect(() => {
     try {
       localStorage.setItem('promptHistory', JSON.stringify(promptHistory));
+      localStorage.setItem('promptFolders', JSON.stringify(folders));
       localStorage.setItem('aiConfigs', JSON.stringify(aiConfigs));
       localStorage.setItem('activeAiConfigId', activeAiConfigId);
     } catch (error) {
       console.error("Failed to save data to localStorage", error);
     }
-  }, [promptHistory, aiConfigs, activeAiConfigId]);
+  }, [promptHistory, folders, aiConfigs, activeAiConfigId]);
 
   const t = useCallback((key: string): string => {
     const keys = key.split('.');
@@ -128,7 +146,7 @@ export default function App() {
   const isFormValid = useMemo(() => {
     if (!selectedGoal) return false;
     if (selectedGoal.id === 'custom') {
-      return formData.customGoal && formData.customGoal.trim() !== '';
+      return !!(formData.custom_target?.trim() && formData.custom_tasks?.trim());
     }
     return selectedGoal.inputFields.every(field => {
       if (!field.required) return true;
@@ -141,24 +159,28 @@ export default function App() {
 
     let task: string;
     let context: { label: string; value: string }[] = [];
+    let role: string;
 
     if (selectedGoal.id === 'custom') {
-        task = `Your task is to respond to the following request: ${formData.customGoal}`;
+        role = `You are to act as or respond to the following target: **${formData.custom_target || t('roles.default')}**.`;
+        task = `Your task is to perform the following objectives:\n\n${formData.custom_tasks || ''}`;
+        if (formData.custom_context && formData.custom_context.trim() !== '') {
+            context.push({ label: t('fields.custom_context.label'), value: formData.custom_context });
+        }
     } else {
         task = `Your task is to ${t(selectedGoal.descriptionKey).toLowerCase().replace('.', '')}.`;
         context = selectedGoal.inputFields
             .filter(field => formData[field.id])
             .map(field => ({ label: t(field.labelKey), value: formData[field.id] }));
+        
+        const roleMap: { [key: string]: string } = {
+            'marketing': t('roles.marketing'),
+            'programming': t('roles.programming'),
+            'creative': t('roles.creative'),
+            'academic': t('roles.academic'),
+        };
+        role = `You are ${roleMap[selectedCategory.id] || t('roles.default')}.`;
     }
-
-    const roleMap: { [key: string]: string } = {
-        'marketing': t('roles.marketing'),
-        'programming': t('roles.programming'),
-        'creative': t('roles.creative'),
-        'academic': t('roles.academic'),
-    };
-
-    const role = `You are ${roleMap[selectedCategory.id] || t('roles.default')}.`;
     
     const customizationsList = [
         { label: t('customizations.tone'), value: customizations.tone },
@@ -220,6 +242,85 @@ export default function App() {
         setPromptHistory(prev => [newHistoryItem, ...prev]);
       }
   };
+  
+   const handleGenerateCustomTasks = async () => {
+    if (!formData.custom_target || !formData.custom_target.trim()) {
+        alert(t('errors.targetRequiredForAssist'));
+        return;
+    }
+
+    setIsGeneratingTasks(true);
+    
+    const systemInstruction = `You are an expert prompt engineer. Your job is to help users flesh out their prompt ideas.`;
+    const userPrompt = `I am creating a prompt.
+**The target for the prompt is:**
+${formData.custom_target}
+
+**Here is some background context/documentation:**
+${formData.custom_context || "No additional context provided."}
+
+Based on the target and context, generate a clear, structured, and actionable list of tasks for the prompt to perform.
+- The tasks should be suitable for the specified target.
+- List the tasks clearly, for example, using a numbered list.
+- Return ONLY the list of tasks, without any introductory phrases like "Here is a list of tasks:".`;
+
+    try {
+        let generatedTasks = '';
+
+        if (activeAiConfigId === DEFAULT_AI_CONFIG_ID) {
+            const apiKey = process.env.API_KEY as string;
+            const ai = new GoogleGenAI({ apiKey });
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: userPrompt,
+                config: { systemInstruction },
+            });
+            generatedTasks = response.text;
+        } else {
+            const activeConfig = aiConfigs.find(c => c.id === activeAiConfigId);
+            if (!activeConfig || !activeConfig.baseURL || !activeConfig.modelId) {
+                throw new Error(t('settings.customConfigMissing'));
+            }
+
+            const endpoint = `${activeConfig.baseURL.replace(/\/$/, '')}/chat/completions`;
+            const headers: HeadersInit = { 'Content-Type': 'application/json' };
+            if (activeConfig.apiKey) {
+                headers['Authorization'] = `Bearer ${activeConfig.apiKey}`;
+            }
+
+            const body = JSON.stringify({
+                model: activeConfig.modelId,
+                messages: [
+                    { role: 'system', content: systemInstruction },
+                    { role: 'user', content: userPrompt },
+                ]
+            });
+
+            const response = await fetch(endpoint, { method: 'POST', headers, body });
+            if (!response.ok) {
+                const errorBody = await response.text();
+                throw new Error(`${t('errors.apiError')} ${response.status}: ${errorBody}`);
+            }
+            const data = await response.json();
+            generatedTasks = data.choices[0]?.message?.content;
+            if (!generatedTasks) {
+                throw new Error(t('errors.noSuggestion'));
+            }
+        }
+        
+        setFormData(prev => ({
+            ...prev,
+            custom_tasks: (prev.custom_tasks ? prev.custom_tasks + '\n' : '') + generatedTasks.trim()
+        }));
+
+    } catch (error) {
+        console.error("Error generating tasks with AI:", error);
+        alert(`${t('errors.assistFailed')} ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+        setIsGeneratingTasks(false);
+    }
+  };
+
 
   const handleImproveWithAi = async () => {
     const promptObj = generatePromptObject();
@@ -356,6 +457,30 @@ ${currentPromptText}
         setPromptHistory([]);
     };
 
+    // Folder Handlers
+    const handleAddFolder = () => {
+        const newFolderName = t('history.addFolder');
+        const newFolder: Folder = {
+            id: new Date().toISOString(),
+            name: `${newFolderName} ${folders.filter(f => f.name.startsWith(newFolderName)).length + 1}`,
+        };
+        setFolders(prev => [...prev, newFolder]);
+    };
+
+    const handleRenameFolder = (id: string, newName: string) => {
+        setFolders(prev => prev.map(folder => folder.id === id ? { ...folder, name: newName } : folder));
+    };
+
+    const handleDeleteFolder = (id: string) => {
+        setPromptHistory(prev => prev.map(item => item.folderId === id ? { ...item, folderId: undefined } : item));
+        setFolders(prev => prev.filter(folder => folder.id !== id));
+    };
+
+    const handleMoveItemToFolder = (itemId: string, folderId: string | 'uncategorized') => {
+        const targetFolderId = folderId === 'uncategorized' ? undefined : folderId;
+        setPromptHistory(prev => prev.map(item => item.id === itemId ? { ...item, folderId: targetFolderId } : item));
+    };
+
     // AI Config Handlers
     const handleSaveAiConfig = (config: AiConfig) => {
         const exists = aiConfigs.some(c => c.id === config.id);
@@ -397,6 +522,12 @@ ${currentPromptText}
           onDeleteHistory={handleDeleteFromHistory}
           onClearHistory={handleClearHistory}
           onRenameHistory={handleRenameHistoryItem}
+          // Folder Props
+          folders={folders}
+          onAddFolder={handleAddFolder}
+          onRenameFolder={handleRenameFolder}
+          onDeleteFolder={handleDeleteFolder}
+          onMoveItemToFolder={handleMoveItemToFolder}
           // AI Config Props
           aiConfigs={aiConfigs}
           activeAiConfigId={activeAiConfigId}
@@ -424,19 +555,19 @@ ${currentPromptText}
             <>
                 <WizardStep title={selectedGoal.id === 'custom' ? t('steps.step3Custom') : t('steps.step3')} isComplete={isFormValid}>
                 {selectedGoal.id === 'custom' ? (
-                    <div>
-                    <label htmlFor="customGoal" className="block text-sm font-medium text-slate-300 mb-1">
-                        {t('fields.customGoal.label')} <span className="text-red-400">*</span>
-                    </label>
-                    <textarea
-                        id="customGoal"
-                        value={formData.customGoal || ''}
-                        onChange={(e) => handleFormChange('customGoal', e.target.value)}
-                        placeholder={t('fields.customGoal.placeholder')}
-                        rows={5}
-                        className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-slate-100 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition"
+                    <InputForm 
+                        goal={{
+                            id: 'custom', 
+                            nameKey: 'goals.custom.name',
+                            descriptionKey: 'goals.custom.description',
+                            inputFields: CUSTOM_GOAL_FIELDS
+                        }} 
+                        formData={formData} 
+                        onChange={handleFormChange} 
+                        t={t} 
+                        onGenerateTasks={handleGenerateCustomTasks}
+                        isGeneratingTasks={isGeneratingTasks}
                     />
-                    </div>
                 ) : (
                     <InputForm goal={selectedGoal as Goal} formData={formData} onChange={handleFormChange} t={t} />
                 )}
@@ -637,23 +768,48 @@ interface InputFormProps {
   formData: Record<string, string>;
   onChange: (id: string, value: string) => void;
   t: (key: string) => string;
+  onGenerateTasks?: () => void;
+  isGeneratingTasks?: boolean;
 }
-const InputForm: React.FC<InputFormProps> = ({ goal, formData, onChange, t }) => (
+const InputForm: React.FC<InputFormProps> = ({ goal, formData, onChange, t, onGenerateTasks, isGeneratingTasks }) => (
   <div className="space-y-4">
     {goal.inputFields.map(field => (
       <div key={field.id}>
-        <Tooltip text={field.tooltipKey ? t(field.tooltipKey) : ''}>
-          <label htmlFor={field.id} className="block text-sm font-medium text-slate-300 mb-1 cursor-help">
-            {t(field.labelKey)} {field.required && <span className="text-red-400">*</span>}
-          </label>
-        </Tooltip>
+        <div className="flex justify-between items-center mb-1">
+            <Tooltip text={field.tooltipKey ? t(field.tooltipKey) : ''}>
+              <label htmlFor={field.id} className="block text-sm font-medium text-slate-300 cursor-help">
+                {t(field.labelKey)} {field.required && <span className="text-red-400">*</span>}
+              </label>
+            </Tooltip>
+            {field.id === 'custom_tasks' && onGenerateTasks && (
+                <Tooltip text={t('fields.custom_tasks.aiAssistTooltip')}>
+                    <button
+                        onClick={onGenerateTasks}
+                        disabled={isGeneratingTasks || !formData.custom_target?.trim()}
+                        className="flex items-center gap-1.5 px-2 py-1 text-xs font-semibold rounded-md transition-colors text-indigo-300 bg-indigo-900/50 hover:bg-indigo-900/80 disabled:bg-slate-700 disabled:text-slate-400 disabled:cursor-not-allowed"
+                    >
+                         {isGeneratingTasks ? (
+                             <>
+                                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                {t('buttons.aiGenerating')}
+                             </>
+                         ) : (
+                             <>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M5 2a1 1 0 00-1 1v1.586l-2.707 2.707a1 1 0 000 1.414l4 4a1 1 0 001.414 0l4-4a1 1 0 000-1.414L8 4.586V3a1 1 0 00-1-1H5zM2 5h8v.586L6.707 8.293a1 1 0 00-1.414 0L2 5.586V5zm6 5H4v4.586l2.293-2.293a1 1 0 011.414 0L10 15.586V10zm4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H13V9h1.586l-1.293-1.293a1 1 0 010-1.414z" /></svg>
+                                {t('buttons.aiAssist')}
+                             </>
+                         )}
+                    </button>
+                </Tooltip>
+            )}
+        </div>
         {field.type === 'textarea' ? (
           <textarea
             id={field.id}
             value={formData[field.id] || ''}
             onChange={(e) => onChange(field.id, e.target.value)}
             placeholder={t(field.placeholderKey)}
-            rows={4}
+            rows={field.id === 'custom_tasks' ? 8 : 4}
             className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-slate-100 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition"
           />
         ) : (
@@ -957,6 +1113,12 @@ interface SidebarProps {
     onDeleteHistory: (id: string) => void;
     onClearHistory: () => void;
     onRenameHistory: (id: string, newName: string) => void;
+    // Folder props
+    folders: Folder[];
+    onAddFolder: () => void;
+    onRenameFolder: (id: string, newName: string) => void;
+    onDeleteFolder: (id: string) => void;
+    onMoveItemToFolder: (itemId: string, folderId: string | 'uncategorized') => void;
     // AI Config props
     aiConfigs: AiConfig[];
     activeAiConfigId: string;
@@ -996,6 +1158,11 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                             onDelete={props.onDeleteHistory}
                             onClear={props.onClearHistory}
                             onRename={props.onRenameHistory}
+                            folders={props.folders}
+                            onAddFolder={props.onAddFolder}
+                            onRenameFolder={props.onRenameFolder}
+                            onDeleteFolder={props.onDeleteFolder}
+                            onMoveItemToFolder={props.onMoveItemToFolder}
                             t={t}
                         />
                     )}
@@ -1028,17 +1195,36 @@ interface PromptHistoryProps {
     onClear: () => void;
     onRename: (id: string, newName: string) => void;
     t: (key: string) => string;
+    folders: Folder[];
+    onAddFolder: () => void;
+    onRenameFolder: (id: string, newName: string) => void;
+    onDeleteFolder: (id: string) => void;
+    onMoveItemToFolder: (itemId: string, folderId: string | 'uncategorized') => void;
 }
-const PromptHistory: React.FC<PromptHistoryProps> = ({ history, categories, onLoad, onDelete, onClear, onRename, t }) => {
+const PromptHistory: React.FC<PromptHistoryProps> = ({ history, categories, onLoad, onDelete, onClear, onRename, t, folders, onAddFolder, onRenameFolder, onDeleteFolder, onMoveItemToFolder }) => {
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editingName, setEditingName] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const [filterCategory, setFilterCategory] = useState('all');
     const [copiedId, setCopiedId] = useState<string | null>(null);
+    const [selectedFolderId, setSelectedFolderId] = useState<'all' | 'uncategorized' | string>('all');
+    const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
+    const [editingFolderName, setEditingFolderName] = useState('');
+
+    const categoryIconMap = useMemo(() => {
+        const map = new Map<string, React.ReactNode>();
+        categories.forEach(cat => map.set(cat.id, cat.icon));
+        return map;
+    }, [categories]);
 
     const filteredHistory = useMemo(() => {
         return history
+            .filter(item => {
+                if (selectedFolderId === 'all') return true;
+                if (selectedFolderId === 'uncategorized') return !item.folderId;
+                return item.folderId === selectedFolderId;
+            })
             .filter(item => {
                 if (filterCategory === 'all') return true;
                 if (item.promptObject.isAiSuggestion) return true; 
@@ -1051,7 +1237,7 @@ const PromptHistory: React.FC<PromptHistoryProps> = ({ history, categories, onLo
                 const promptText = buildTextPrompt(item.promptObject, t).toLowerCase();
                 return goalName.includes(query) || promptText.includes(query);
             });
-    }, [history, searchQuery, filterCategory, t]);
+    }, [history, searchQuery, filterCategory, t, selectedFolderId]);
 
     const toggleExpand = (id: string) => { setExpandedId(prevId => (prevId === id ? null : id)); };
     const handleCopy = (item: HistoryItem) => {
@@ -1071,6 +1257,24 @@ const PromptHistory: React.FC<PromptHistoryProps> = ({ history, categories, onLo
         setEditingId(null);
     };
 
+    const handleRenameFolderClick = (folder: Folder) => {
+        setEditingFolderId(folder.id);
+        setEditingFolderName(folder.name);
+    };
+
+    const handleRenameFolderSave = (id: string) => {
+        if (editingFolderName.trim()) {
+            onRenameFolder(id, editingFolderName.trim());
+        }
+        setEditingFolderId(null);
+    };
+
+    const handleDeleteFolderClick = (id: string) => {
+        if (window.confirm(t('history.deleteFolderConfirm'))) {
+            onDeleteFolder(id);
+        }
+    };
+
     if (history.length === 0) {
         return (
             <section>
@@ -1082,7 +1286,32 @@ const PromptHistory: React.FC<PromptHistoryProps> = ({ history, categories, onLo
     
     return (
         <section>
-            <div className="flex flex-col justify-between items-start mb-4 gap-4">
+            <div className="mb-6">
+                <div className="flex justify-between items-center mb-2">
+                    <h4 className="text-lg font-bold text-slate-300">{t('history.foldersTitle')}</h4>
+                    <button onClick={onAddFolder} className="px-2 py-1 text-xs font-semibold text-teal-300 bg-teal-900/50 rounded hover:bg-teal-900/80 transition">{t('history.addFolder')}</button>
+                </div>
+                <div className="space-y-1">
+                    <FolderItem name={t('history.allPrompts')} isActive={selectedFolderId === 'all'} onClick={() => setSelectedFolderId('all')} />
+                    <FolderItem name={t('history.uncategorized')} isActive={selectedFolderId === 'uncategorized'} onClick={() => setSelectedFolderId('uncategorized')} />
+                    {folders.map(folder => (
+                        <FolderItem 
+                           key={folder.id}
+                           name={folder.name}
+                           isActive={selectedFolderId === folder.id}
+                           onClick={() => setSelectedFolderId(folder.id)}
+                           isEditing={editingFolderId === folder.id}
+                           editingValue={editingFolderName}
+                           onEditingChange={setEditingFolderName}
+                           onRename={() => handleRenameFolderClick(folder)}
+                           onSaveRename={() => handleRenameFolderSave(folder.id)}
+                           onDelete={() => handleDeleteFolderClick(folder.id)}
+                        />
+                    ))}
+                </div>
+            </div>
+
+            <div className="flex flex-col justify-between items-start mb-4 gap-4 border-t border-slate-700 pt-4">
                  <h3 className="text-xl font-bold text-slate-200">{t('history.title')}</h3>
                  <div className="w-full flex flex-col items-center gap-2">
                     <input 
@@ -1107,8 +1336,14 @@ const PromptHistory: React.FC<PromptHistoryProps> = ({ history, categories, onLo
             </div>
             <div className="space-y-2 max-h-96 overflow-y-auto pr-2">
                 {filteredHistory.length > 0 ? filteredHistory.map(item => (
-                    <div key={item.id} className="bg-slate-900/70 rounded-lg border border-slate-700">
-                        <div className="p-3 flex justify-between items-center">
+                    <div key={item.id} className="bg-slate-900/70 rounded-lg border border-slate-700 transition-shadow hover:shadow-md hover:border-slate-600">
+                        <div className="p-3 flex items-center gap-4">
+                             <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${item.promptObject.isAiSuggestion ? 'bg-indigo-900/50 text-indigo-400' : 'bg-slate-800 text-teal-400'}`}>
+                                {item.promptObject.isAiSuggestion 
+                                    ? <AiSuggestionIcon /> 
+                                    : categoryIconMap.get(item.generatorState.selectedCategoryId)
+                                }
+                            </div>
                             <div className="flex-grow overflow-hidden">
                                 {editingId === item.id ? (
                                     <input
@@ -1135,13 +1370,23 @@ const PromptHistory: React.FC<PromptHistoryProps> = ({ history, categories, onLo
                             </div>
                         </div>
                         {expandedId === item.id && (
-                            <div className="p-3 border-t border-slate-700">
+                            <div className="p-3 border-t border-slate-700 bg-black/20">
                                 <pre className="whitespace-pre-wrap text-slate-300 text-xs bg-slate-800 p-2 rounded-md overflow-x-auto mb-3">
                                   <code>{buildTextPrompt(item.promptObject, t)}</code>
                                 </pre>
-                                <div className="flex space-x-2 justify-end">
+                                <div className="flex flex-wrap gap-2 justify-end">
                                     <button onClick={() => onLoad(item)} className="px-2 py-1 text-xs font-semibold text-teal-300 bg-teal-900/50 rounded hover:bg-teal-900/80 transition">{t('buttons.load')}</button>
                                     <button onClick={() => handleCopy(item)} className="px-2 py-1 text-xs font-semibold text-cyan-300 bg-cyan-900/50 rounded hover:bg-cyan-900/80 transition">{copiedId === item.id ? t('history.copied') : t('buttons.copy')}</button>
+                                    <select
+                                        value={item.folderId || 'uncategorized'}
+                                        onChange={(e) => onMoveItemToFolder(item.id, e.target.value)}
+                                        className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs font-semibold text-slate-200 focus:ring-1 focus:ring-teal-500"
+                                    >
+                                        <option value="uncategorized">{t('history.uncategorized')}</option>
+                                        {folders.map(folder => (
+                                            <option key={folder.id} value={folder.id}>{folder.name}</option>
+                                        ))}
+                                    </select>
                                     <button onClick={() => onDelete(item.id)} className="px-2 py-1 text-xs font-semibold text-red-400 bg-red-900/50 rounded hover:bg-red-900/80 transition">{t('buttons.delete')}</button>
                                 </div>
                             </div>
@@ -1152,6 +1397,45 @@ const PromptHistory: React.FC<PromptHistoryProps> = ({ history, categories, onLo
         </section>
     );
 };
+
+
+interface FolderItemProps {
+    name: string;
+    isActive: boolean;
+    onClick: () => void;
+    isEditing?: boolean;
+    editingValue?: string;
+    onEditingChange?: (value: string) => void;
+    onRename?: () => void;
+    onSaveRename?: () => void;
+    onDelete?: () => void;
+}
+const FolderItem: React.FC<FolderItemProps> = ({ name, isActive, onClick, isEditing, editingValue, onEditingChange, onRename, onSaveRename, onDelete }) => (
+    <div className={`group flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors ${isActive ? 'bg-slate-700' : 'hover:bg-slate-800'}`}>
+        {isEditing ? (
+            <input
+                type="text"
+                value={editingValue}
+                onChange={(e) => onEditingChange?.(e.target.value)}
+                onBlur={onSaveRename}
+                onKeyDown={(e) => e.key === 'Enter' && onSaveRename?.()}
+                className="w-full bg-slate-600 border border-slate-500 rounded px-1 py-0 text-sm text-slate-100"
+                autoFocus
+            />
+        ) : (
+            <button onClick={onClick} className="flex-grow text-left text-sm font-medium text-slate-300 truncate">
+                {name}
+            </button>
+        )}
+        {onRename && onDelete && !isEditing && (
+            <div className="hidden group-hover:flex items-center flex-shrink-0 ml-2">
+                <button onClick={onRename} className="p-1 text-slate-400 hover:text-white" title="Rename Folder"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
+                <button onClick={onDelete} className="p-1 text-slate-400 hover:text-red-400" title="Delete Folder"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg></button>
+            </div>
+        )}
+    </div>
+);
+
 
 // ################# AI CONFIGURATION MANAGER #################
 

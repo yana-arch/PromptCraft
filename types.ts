@@ -57,6 +57,7 @@ export interface HistoryItem {
   timestamp: number;
   goalNameKey: string;
   customName?: string; // Allow user to rename history items
+  folderId?: string; // Added for folder categorization
   promptObject: PromptObject;
   // Store the state required to reload the prompt
   generatorState: {
@@ -78,4 +79,10 @@ export interface AiConfig {
     baseURL: string;
     apiKey: string;
     modelId: string;
+}
+
+// Added for prompt history folders
+export interface Folder {
+    id: string;
+    name: string;
 }

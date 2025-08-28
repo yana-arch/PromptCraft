@@ -1,5 +1,5 @@
 import React from 'react';
-import type { Category, PromptStyle } from './types';
+import type { Category, PromptStyle, InputField } from './types';
 
 // SVG Icons
 const MarketingIcon = (
@@ -160,3 +160,9 @@ export const PROMPT_TECHNIQUES = [
 export const TONES = ['Professional', 'Friendly', 'Humorous', 'Formal', 'Casual', 'Persuasive'];
 export const FORMATS = ['Plain Text', 'Markdown', 'JSON', 'HTML', 'Bulleted List', 'Numbered List'];
 export const LENGTHS = ['Very Short (~50 words)', 'Short (~150 words)', 'Medium (~300 words)', 'Long (500+ words)'];
+
+export const CUSTOM_GOAL_FIELDS: InputField[] = [
+  { id: 'custom_target', labelKey: 'fields.custom_target.label', placeholderKey: 'fields.custom_target.placeholder', tooltipKey: 'fields.custom_target.tooltip', type: 'text', required: true },
+  { id: 'custom_context', labelKey: 'fields.custom_context.label', placeholderKey: 'fields.custom_context.placeholder', tooltipKey: 'fields.custom_context.tooltip', type: 'textarea', required: false },
+  { id: 'custom_tasks', labelKey: 'fields.custom_tasks.label', placeholderKey: 'fields.custom_tasks.placeholder', tooltipKey: 'fields.custom_tasks.tooltip', type: 'textarea', required: true },
+];
