@@ -1,3 +1,4 @@
+
 export const translations = {
   en: {
     app: {
@@ -124,6 +125,7 @@ export const translations = {
         noResults: 'No matching prompts found.',
         copied: 'Copied!',
         aiImprovedPrompt: 'AI-Improved Prompt',
+        textSummary: 'Text Summary',
         foldersTitle: 'Folders',
         addFolder: 'New Folder',
         allPrompts: 'All Prompts',
@@ -176,6 +178,7 @@ export const translations = {
         noSuggestion: 'Could not extract suggestion from API response.',
         testFieldsMissing: 'Base URL and Model ID are required for testing.',
         unknown: 'An unknown error occurred.',
+        jsonParseFailed: 'Failed to parse the AI response. The format might be incorrect.',
     }
   },
   vi: {
@@ -303,6 +306,7 @@ export const translations = {
         noResults: 'Không tìm thấy prompt nào phù hợp.',
         copied: 'Đã sao chép!',
         aiImprovedPrompt: 'Prompt được cải thiện bởi AI',
+        textSummary: 'Tóm tắt văn bản',
         foldersTitle: 'Thư mục',
         addFolder: 'Thư mục mới',
         allPrompts: 'Tất cả Prompt',
@@ -355,6 +359,7 @@ export const translations = {
         noSuggestion: 'Không thể trích xuất gợi ý từ phản hồi API.',
         testFieldsMissing: 'Cần có Base URL và ID Mô hình để kiểm tra.',
         unknown: 'Đã xảy ra lỗi không xác định.',
+        jsonParseFailed: 'Không thể phân tích phản hồi của AI. Định dạng có thể không chính xác.',
     }
   },
 };

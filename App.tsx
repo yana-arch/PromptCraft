@@ -1,9 +1,7 @@
 
 
-
-
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { CATEGORIES, PROMPT_STYLES, TONES, FORMATS, LENGTHS, PROMPT_TECHNIQUES, CUSTOM_GOAL_FIELDS } from './constants';
 import { translations } from './translations';
 import type { Category, Goal, Customizations, PromptObject, HistoryItem, AiConfig, Folder } from './types';
@@ -22,6 +20,59 @@ const AiSuggestionIcon = () => (
       <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.898 20.562L16.25 22.5l-.648-1.938a2.25 2.25 0 01-1.423-1.423L12.25 18.5l1.938-.648a2.25 2.25 0 011.423-1.423L17.75 15.75l.648 1.938a2.25 2.25 0 011.423 1.423L21.75 19.5l-1.938.648a2.25 2.25 0 01-1.423 1.423z" />
     </svg>
 );
+
+const extractJsonFromString = (str: string): string | null => {
+  const match = str.match(/```json\s*([\s\S]*?)\s*```/);
+  if (match && match[1]) {
+    return match[1];
+  }
+  const firstBrace = str.indexOf('{');
+  const lastBrace = str.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    return str.substring(firstBrace, lastBrace + 1);
+  }
+  return null;
+};
+
+const generateHistoryItemName = (goal: Goal | { id: string; nameKey: string }, formData: Record<string, string>, t: (key: string) => string): string => {
+    let name = t(goal.nameKey);
+    let detail = '';
+
+    switch (goal.id) {
+        case 'facebook-post':
+            detail = formData.product;
+            break;
+        case 'seo-plan':
+            detail = formData.keyword;
+            break;
+        case 'explain-code':
+        case 'write-docs':
+            detail = formData.language;
+            break;
+        case 'git-commit':
+            detail = formData['commit-type'];
+            break;
+        case 'pr-description':
+            detail = formData['pr-title'];
+            break;
+        case 'story-idea':
+            detail = formData.genre;
+            break;
+        case 'summarize-text':
+            detail = formData.focus || t('history.textSummary');
+            break;
+        case 'custom':
+            detail = formData.custom_target;
+            break;
+    }
+
+    if (detail && detail.trim() !== '') {
+        const truncatedDetail = detail.length > 30 ? `${detail.substring(0, 30)}...` : detail;
+        return `${name}: ${truncatedDetail}`;
+    }
+    return name;
+};
+
 
 // Main App Component
 export default function App() {
@@ -226,6 +277,7 @@ export default function App() {
         const newHistoryItem: HistoryItem = {
             id: new Date().toISOString(),
             timestamp: Date.now(),
+            customName: generateHistoryItemName(selectedGoal, formData, t),
             goalNameKey: selectedGoal.nameKey,
             promptObject: promptObj,
             generatorState: {
@@ -330,21 +382,32 @@ Based on the target and context, generate a clear, structured, and actionable li
     setAiSuggestion(null);
     
     const currentPromptText = buildTextPrompt(promptObj, t);
-    const systemInstruction = `You are a world-class prompt engineering expert. Your task is to analyze and improve a user-provided prompt to make it more effective, clear, and comprehensive for a large language model.`;
-    const userPrompt = `**User's Original Prompt:**
+    const systemInstruction = `You are a world-class prompt engineering expert. Your task is to analyze and improve a user-provided prompt. You must respond with a JSON object containing two keys: "namePrompt" (a concise, descriptive title for the improved prompt) and "mainContentPrompt" (the full, rewritten prompt text).`;
+    const userPrompt = `Analyze and improve the following prompt. Provide a concise title for it as well.
+
+**Original Prompt:**
 ---
 ${currentPromptText}
 ---
 
 **Your Instructions:**
-1. Do not fulfill the user's prompt. Instead, rewrite the prompt itself.
-2. Enhance the prompt by adding clarity, context, and constraints that will lead to a better response from an AI.
-3. Consider the user's goal and refine the language to be more precise.
-4. Structure the output to be a complete, ready-to-use prompt.
-5. Return ONLY the improved prompt text, without any introductory phrases like "Here is the improved prompt:".`;
+1. Do not fulfill the user's original prompt. Instead, rewrite the prompt itself to be more effective.
+2. Create a short, descriptive title for the new prompt (e.g., "Content Plan for Urban Gardening SEO").
+3. Return a single, valid JSON object with the structure: {"namePrompt": "...", "mainContentPrompt": "..."}.
+4. Do not include any text, notes, or markdown formatting outside of the JSON object itself.`;
       
     try {
       let suggestionText = '';
+      let suggestionName = t('history.aiImprovedPrompt');
+
+      const responseSchema = {
+          type: Type.OBJECT,
+          properties: {
+            namePrompt: { type: Type.STRING, description: "A concise, descriptive title for the improved prompt." },
+            mainContentPrompt: { type: Type.STRING, description: "The full, rewritten and improved prompt text." },
+          },
+          required: ["namePrompt", "mainContentPrompt"],
+      };
 
       if (activeAiConfigId === DEFAULT_AI_CONFIG_ID) {
         const apiKey = process.env.API_KEY as string;
@@ -352,9 +415,19 @@ ${currentPromptText}
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: userPrompt,
-            config: { systemInstruction },
+            config: { 
+                systemInstruction,
+                responseMimeType: "application/json",
+                responseSchema,
+            },
         });
-        suggestionText = response.text;
+        
+        const rawResponse = response.text;
+        const jsonString = extractJsonFromString(rawResponse) || rawResponse;
+        const parsed = JSON.parse(jsonString);
+        suggestionName = parsed.namePrompt;
+        suggestionText = parsed.mainContentPrompt;
+
       } else { 
         const activeConfig = aiConfigs.find(c => c.id === activeAiConfigId);
         if (!activeConfig || !activeConfig.baseURL || !activeConfig.modelId) {
@@ -366,13 +439,15 @@ ${currentPromptText}
         if (activeConfig.apiKey) {
             headers['Authorization'] = `Bearer ${activeConfig.apiKey}`;
         }
-
+        
+        // Try to request JSON format from OpenAI-compatible APIs
         const body = JSON.stringify({
             model: activeConfig.modelId,
             messages: [
                 { role: 'system', content: systemInstruction },
                 { role: 'user', content: userPrompt },
-            ]
+            ],
+            response_format: { type: "json_object" },
         });
         
         const response = await fetch(endpoint, { method: 'POST', headers, body }).catch(err => {
@@ -387,12 +462,17 @@ ${currentPromptText}
         }
 
         const data = await response.json();
-        suggestionText = data.choices[0]?.message?.content;
-        if (!suggestionText) {
+        const rawContent = data.choices[0]?.message?.content;
+        if (!rawContent) {
             throw new Error(t('errors.noSuggestion'));
         }
+        
+        const jsonString = extractJsonFromString(rawContent) || rawContent;
+        const parsed = JSON.parse(jsonString);
+        suggestionName = parsed.namePrompt;
+        suggestionText = parsed.mainContentPrompt;
       }
-
+      
       setAiSuggestion(suggestionText);
 
       const aiPromptObject: PromptObject = {
@@ -406,6 +486,7 @@ ${currentPromptText}
       const newHistoryItem: HistoryItem = {
           id: new Date().toISOString() + '-ai',
           timestamp: Date.now(),
+          customName: suggestionName,
           goalNameKey: 'history.aiImprovedPrompt',
           promptObject: aiPromptObject,
           generatorState: {
@@ -423,7 +504,15 @@ ${currentPromptText}
 
     } catch (error) {
         console.error("Error calling AI for improvement:", error);
-        setAiSuggestion(`${t('errors.improveFailed')} ${error instanceof Error ? error.message : String(error)}`);
+        let errorMessage = t('errors.improveFailed');
+        if (error instanceof SyntaxError) {
+            errorMessage += ` ${t('errors.jsonParseFailed')}`;
+        } else if (error instanceof Error) {
+            errorMessage += ` ${error.message}`;
+        } else {
+            errorMessage += ` ${String(error)}`;
+        }
+        setAiSuggestion(errorMessage);
     } finally {
         setIsImproving(false);
     }
@@ -605,7 +694,7 @@ ${currentPromptText}
                 <button
                     onClick={handleGenerateClick}
                     disabled={!isFormValid}
-                    className="w-full md:w-auto disabled:bg-slate-600 disabled:cursor-not-allowed disabled:text-slate-400 bg-teal-500 hover:bg-teal-400 text-white font-bold py-3 px-8 rounded-lg shadow-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-teal-300"
+                    className={`w-full md:w-auto disabled:bg-slate-600 disabled:cursor-not-allowed disabled:text-slate-400 bg-teal-500 hover:bg-teal-400 text-white font-bold py-3 px-8 rounded-lg shadow-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-teal-300 ${isFormValid ? 'animate-pulse' : ''}`}
                 >
                     {t('buttons.buildPrompt')}
                 </button>
@@ -1169,6 +1258,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                     {activeTab === 'settings' && (
                          <AiConfigurationManager 
                             configs={props.aiConfigs}
+                            // FIX: Corrected typo from `props.activeConfigId` to `props.activeAiConfigId`.
                             activeConfigId={props.activeAiConfigId}
                             onSetActive={props.onSetActiveAiConfig}
                             onAdd={props.onAddAiConfig}
