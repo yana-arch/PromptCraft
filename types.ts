@@ -11,7 +11,7 @@ export interface InputField {
 }
 
 export interface Goal {
-  id: string;
+  id:string;
   nameKey: string;
   descriptionKey: string;
   inputFields: InputField[];
@@ -59,7 +59,8 @@ export interface HistoryItem {
   customName?: string; // Allow user to rename history items
   folderId?: string; // Added for folder categorization
   promptObject: PromptObject;
-  // Store the state required to reload the prompt
+  // Store the state required to reload the prompt.
+  // For imported prompts, this state might be minimal.
   generatorState: {
     selectedCategoryId: string;
     selectedGoalId: string;
@@ -68,6 +69,7 @@ export interface HistoryItem {
     selectedTechniqueId: string;
     customizations: Customizations;
     fewShotExamples?: { input: string; output: string }[];
+    // Also used to store original prompt for AI-improved imported prompts
     ragContext?: string;
   };
 }

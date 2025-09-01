@@ -90,6 +90,7 @@ export const translations = {
     buttons: {
         buildPrompt: 'Build My Prompt',
         improveWithAI: 'Improve with AI',
+        importAndImprove: 'Import & Improve',
         copy: 'Copy',
         load: 'Load',
         delete: 'Delete',
@@ -134,6 +135,16 @@ export const translations = {
         renameFolder: 'Rename Folder',
         deleteFolder: 'Delete Folder',
         deleteFolderConfirm: 'Are you sure you want to delete this folder? Prompts within it will become uncategorized.',
+        importedPrompt: 'Imported Prompt',
+        importedPromptRole: 'This is an imported prompt.',
+        fromImport: 'from import',
+    },
+    importModal: {
+        title: 'Import Prompt for Improvement',
+        fileLabel: 'Click to select a file or paste content below',
+        fileTypes: 'Supported types: .txt, .md, .json, .xml, .yaml',
+        pastePlaceholder: 'Or paste your prompt content here...',
+        improveButton: 'Improve This Prompt',
     },
     settings: {
       title: 'AI Configurations',
@@ -179,6 +190,7 @@ export const translations = {
         testFieldsMissing: 'Base URL and Model ID are required for testing.',
         unknown: 'An unknown error occurred.',
         jsonParseFailed: 'Failed to parse the AI response. The format might be incorrect.',
+        fileReadError: 'There was an error reading the file.',
     }
   },
   vi: {
@@ -271,6 +283,7 @@ export const translations = {
     buttons: {
         buildPrompt: 'Xây dựng Prompt',
         improveWithAI: 'Cải thiện với AI',
+        importAndImprove: 'Nhập & Cải thiện',
         copy: 'Sao chép',
         load: 'Tải',
         delete: 'Xóa',
@@ -315,6 +328,16 @@ export const translations = {
         renameFolder: 'Đổi tên thư mục',
         deleteFolder: 'Xóa thư mục',
         deleteFolderConfirm: 'Bạn có chắc muốn xóa thư mục này không? Các prompt trong đó sẽ không được phân loại.',
+        importedPrompt: 'Prompt đã Nhập',
+        importedPromptRole: 'Đây là một prompt được nhập từ tệp.',
+        fromImport: 'từ tệp nhập',
+    },
+    importModal: {
+        title: 'Nhập Prompt để Cải thiện',
+        fileLabel: 'Nhấp để chọn tệp hoặc dán nội dung bên dưới',
+        fileTypes: 'Loại tệp được hỗ trợ: .txt, .md, .json, .xml, .yaml',
+        pastePlaceholder: 'Hoặc dán nội dung prompt của bạn vào đây...',
+        improveButton: 'Cải thiện Prompt này',
     },
     settings: {
       title: 'Cấu hình AI',
@@ -360,6 +383,7 @@ export const translations = {
         testFieldsMissing: 'Cần có Base URL và ID Mô hình để kiểm tra.',
         unknown: 'Đã xảy ra lỗi không xác định.',
         jsonParseFailed: 'Không thể phân tích phản hồi của AI. Định dạng có thể không chính xác.',
+        fileReadError: 'Đã có lỗi khi đọc tệp.',
     }
   },
 };

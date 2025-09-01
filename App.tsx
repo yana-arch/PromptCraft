@@ -21,6 +21,13 @@ const AiSuggestionIcon = () => (
     </svg>
 );
 
+const ImportIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+    </svg>
+);
+
+
 const extractJsonFromString = (str: string): string | null => {
   const match = str.match(/```json\s*([\s\S]*?)\s*```/);
   if (match && match[1]) {
@@ -102,6 +109,8 @@ export default function App() {
 
   // UI State
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+
 
   // AI Configuration State
   const [aiConfigs, setAiConfigs] = useState<AiConfig[]>([]);
@@ -518,6 +527,151 @@ ${currentPromptText}
     }
   };
 
+  const handleImproveImportedPrompt = async (promptText: string) => {
+    if (!promptText.trim()) return;
+
+    setIsImportModalOpen(false);
+    setIsImproving(true);
+    setAiSuggestion(null);
+    setGeneratedPrompt(null);
+    window.scrollTo(0, document.body.scrollHeight);
+    
+    const originalPromptObject: PromptObject = {
+        role: t('history.importedPromptRole'),
+        task: promptText,
+        context: [],
+        customizations: [],
+    };
+    const originalHistoryItem: HistoryItem = {
+        id: new Date().toISOString() + '-imported',
+        timestamp: Date.now(),
+        customName: t('history.importedPrompt'),
+        goalNameKey: 'history.importedPrompt',
+        promptObject: originalPromptObject,
+        generatorState: {
+            selectedCategoryId: 'custom',
+            selectedGoalId: 'custom',
+            formData: {},
+            selectedStyleId: '',
+            selectedTechniqueId: '',
+            customizations: { tone: '', format: '', length: '' },
+        }
+    };
+
+    const systemInstruction = `You are a world-class prompt engineering expert. Your task is to analyze and improve a user-provided prompt. You must respond with a JSON object containing two keys: "namePrompt" (a concise, descriptive title for the improved prompt) and "mainContentPrompt" (the full, rewritten prompt text).`;
+    const userPrompt = `Analyze and improve the following prompt. Provide a concise title for it as well.
+
+**Original Prompt:**
+---
+${promptText}
+---
+
+**Your Instructions:**
+1. Do not fulfill the user's original prompt. Instead, rewrite the prompt itself to be more effective.
+2. Create a short, descriptive title for the new prompt (e.g., "Content Plan for Urban Gardening SEO").
+3. Return a single, valid JSON object with the structure: {"namePrompt": "...", "mainContentPrompt": "..."}.
+4. Do not include any text, notes, or markdown formatting outside of the JSON object itself.`;
+      
+    try {
+      let suggestionText = '';
+      let suggestionName = t('history.aiImprovedPrompt');
+
+      const responseSchema = {
+          type: Type.OBJECT,
+          properties: {
+            namePrompt: { type: Type.STRING, description: "A concise, descriptive title for the improved prompt." },
+            mainContentPrompt: { type: Type.STRING, description: "The full, rewritten and improved prompt text." },
+          },
+          required: ["namePrompt", "mainContentPrompt"],
+      };
+
+      if (activeAiConfigId === DEFAULT_AI_CONFIG_ID) {
+        const apiKey = process.env.API_KEY as string;
+        const ai = new GoogleGenAI({ apiKey });
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: userPrompt,
+            config: { 
+                systemInstruction,
+                responseMimeType: "application/json",
+                responseSchema,
+            },
+        });
+        
+        const rawResponse = response.text;
+        const jsonString = extractJsonFromString(rawResponse) || rawResponse;
+        const parsed = JSON.parse(jsonString);
+        suggestionName = parsed.namePrompt;
+        suggestionText = parsed.mainContentPrompt;
+
+      } else { 
+        const activeConfig = aiConfigs.find(c => c.id === activeAiConfigId);
+        if (!activeConfig || !activeConfig.baseURL || !activeConfig.modelId) {
+            throw new Error(t('settings.customConfigMissing'));
+        }
+        const endpoint = `${activeConfig.baseURL.replace(/\/$/, '')}/chat/completions`;
+        const headers: HeadersInit = { 'Content-Type': 'application/json' };
+        if (activeConfig.apiKey) {
+            headers['Authorization'] = `Bearer ${activeConfig.apiKey}`;
+        }
+        const body = JSON.stringify({
+            model: activeConfig.modelId,
+            messages: [
+                { role: 'system', content: systemInstruction },
+                { role: 'user', content: userPrompt },
+            ],
+            response_format: { type: "json_object" },
+        });
+        const response = await fetch(endpoint, { method: 'POST', headers, body });
+        if (!response.ok) {
+            const errorBody = await response.text();
+            throw new Error(`${t('errors.apiError')} ${response.status}: ${errorBody}`);
+        }
+        const data = await response.json();
+        const rawContent = data.choices[0]?.message?.content;
+        if (!rawContent) throw new Error(t('errors.noSuggestion'));
+        
+        const jsonString = extractJsonFromString(rawContent) || rawContent;
+        const parsed = JSON.parse(jsonString);
+        suggestionName = parsed.namePrompt;
+        suggestionText = parsed.mainContentPrompt;
+      }
+      
+      setAiSuggestion(suggestionText);
+
+      const aiPromptObject: PromptObject = {
+          isAiSuggestion: true,
+          role: '',
+          task: suggestionText,
+          context: [],
+          customizations: [],
+      };
+
+      const aiHistoryItem: HistoryItem = {
+          id: new Date().toISOString() + '-ai-imported',
+          timestamp: Date.now(),
+          customName: `${suggestionName} (${t('history.fromImport')})`,
+          goalNameKey: 'history.aiImprovedPrompt',
+          promptObject: aiPromptObject,
+          generatorState: { ...originalHistoryItem.generatorState, ragContext: promptText }
+      };
+      setPromptHistory(prev => [aiHistoryItem, originalHistoryItem, ...prev]);
+
+    } catch (error) {
+        console.error("Error calling AI for improvement:", error);
+        let errorMessage = t('errors.improveFailed');
+        if (error instanceof SyntaxError) {
+            errorMessage += ` ${t('errors.jsonParseFailed')}`;
+        } else if (error instanceof Error) {
+            errorMessage += ` ${error.message}`;
+        }
+        setAiSuggestion(errorMessage);
+    } finally {
+        setIsImproving(false);
+    }
+  };
+
+
     const handleLoadFromHistory = (item: HistoryItem) => {
         const { generatorState } = item;
         setSelectedCategoryId(generatorState.selectedCategoryId);
@@ -720,6 +874,13 @@ ${currentPromptText}
                         )}
                     </button>
                 </Tooltip>
+                 <button
+                    onClick={() => setIsImportModalOpen(true)}
+                    className="w-full md:w-auto flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold py-3 px-8 rounded-lg shadow-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-slate-500"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>
+                    {t('buttons.importAndImprove')}
+                </button>
                 </div>
             </>
             )}
@@ -743,6 +904,14 @@ ${currentPromptText}
         onClose={() => setIsAiConfigModalOpen(false)}
         onSave={handleSaveAiConfig}
         config={editingAiConfig}
+        t={t}
+      />
+
+       <ImportPromptModal 
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onImprove={handleImproveImportedPrompt}
+        isImproving={isImproving}
         t={t}
       />
     </div>
@@ -1428,10 +1597,12 @@ const PromptHistory: React.FC<PromptHistoryProps> = ({ history, categories, onLo
                 {filteredHistory.length > 0 ? filteredHistory.map(item => (
                     <div key={item.id} className="bg-slate-900/70 rounded-lg border border-slate-700 transition-shadow hover:shadow-md hover:border-slate-600">
                         <div className="p-3 flex items-center gap-4">
-                             <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${item.promptObject.isAiSuggestion ? 'bg-indigo-900/50 text-indigo-400' : 'bg-slate-800 text-teal-400'}`}>
+                              <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${item.promptObject.isAiSuggestion ? 'bg-indigo-900/50 text-indigo-400' : item.goalNameKey === 'history.importedPrompt' ? 'bg-slate-700 text-slate-300' : 'bg-slate-800 text-teal-400'}`}>
                                 {item.promptObject.isAiSuggestion 
                                     ? <AiSuggestionIcon /> 
-                                    : categoryIconMap.get(item.generatorState.selectedCategoryId)
+                                    : item.goalNameKey === 'history.importedPrompt' 
+                                        ? <ImportIcon /> 
+                                        : categoryIconMap.get(item.generatorState.selectedCategoryId)
                                 }
                             </div>
                             <div className="flex-grow overflow-hidden">
@@ -1688,6 +1859,104 @@ const AiConfigModal: React.FC<AiConfigModalProps> = ({ isOpen, onClose, onSave, 
                 <div className="p-4 bg-slate-800/50 border-t border-slate-700 flex justify-end items-center space-x-3">
                     <button onClick={onClose} className="px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-slate-600 hover:bg-slate-500 text-white">{t('settings.cancel')}</button>
                     <button onClick={handleSave} className="px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-teal-600 hover:bg-teal-500 text-white">{t('settings.save')}</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ################# IMPORT PROMPT MODAL #################
+interface ImportPromptModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onImprove: (promptText: string) => void;
+    isImproving: boolean;
+    t: (key: string) => string;
+}
+const ImportPromptModal: React.FC<ImportPromptModalProps> = ({ isOpen, onClose, onImprove, isImproving, t }) => {
+    const [promptContent, setPromptContent] = useState('');
+    const [fileName, setFileName] = useState('');
+
+    useEffect(() => {
+        if (isOpen) {
+            setPromptContent('');
+            setFileName('');
+        }
+    }, [isOpen]);
+
+    if (!isOpen) return null;
+
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            setFileName(file.name);
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const text = e.target?.result as string;
+                setPromptContent(text);
+            };
+            reader.onerror = () => {
+                alert(t('errors.fileReadError'));
+                setFileName('');
+                setPromptContent('');
+            };
+            reader.readAsText(file);
+        }
+    };
+    
+    const triggerFileInput = () => {
+        const fileInput = document.getElementById('file-importer');
+        if (fileInput) {
+           fileInput.click();
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
+            <div className="w-full max-w-2xl bg-slate-800 rounded-xl border border-slate-700 shadow-lg flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+                <div className="p-6 border-b border-slate-700">
+                    <h2 className="text-xl font-bold text-slate-200">{t('importModal.title')}</h2>
+                </div>
+                <div className="p-6 space-y-4 overflow-y-auto">
+                    <button 
+                        onClick={triggerFileInput}
+                        className="w-full p-6 border-2 border-dashed border-slate-600 rounded-lg text-center text-slate-400 hover:border-teal-500 hover:text-teal-400 transition-colors"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                        <p className="mt-2 font-semibold">{fileName || t('importModal.fileLabel')}</p>
+                        <p className="text-xs text-slate-500">{t('importModal.fileTypes')}</p>
+                    </button>
+                    <input 
+                        type="file" 
+                        id="file-importer" 
+                        className="hidden"
+                        accept=".txt,.md,.json,.xml,.yaml"
+                        onChange={handleFileChange} 
+                    />
+                    <textarea
+                        value={promptContent}
+                        onChange={(e) => setPromptContent(e.target.value)}
+                        rows={10}
+                        placeholder={t('importModal.pastePlaceholder')}
+                        className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-slate-100 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition"
+                    />
+                </div>
+                <div className="p-4 bg-slate-800/50 border-t border-slate-700 flex justify-end items-center space-x-3">
+                    <button onClick={onClose} className="px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-slate-600 hover:bg-slate-500 text-white">{t('settings.cancel')}</button>
+                    <button 
+                        onClick={() => onImprove(promptContent)} 
+                        disabled={!promptContent.trim() || isImproving}
+                        className="px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-indigo-600 hover:bg-indigo-500 text-white disabled:bg-slate-600 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                         {isImproving ? (
+                            <>
+                                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                {t('output.aiImproving')}
+                            </>
+                        ) : (
+                           t('importModal.improveButton')
+                        )}
+                    </button>
                 </div>
             </div>
         </div>
