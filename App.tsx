@@ -1,12 +1,13 @@
 
 
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { GoogleGenAI, Type } from "@google/genai";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { GoogleGenAI, Type, Chat } from "@google/genai";
 import { CATEGORIES, PROMPT_STYLES, TONES, FORMATS, LENGTHS, PROMPT_TECHNIQUES, CUSTOM_GOAL_FIELDS } from './constants';
 import { translations } from './translations';
-import type { Category, Goal, Customizations, PromptObject, HistoryItem, AiConfig, Folder } from './types';
+import type { Category, Goal, Customizations, PromptObject, HistoryItem, AiConfig, Folder, ChatMessage, ChatSession } from './types';
 
 type Language = 'en' | 'vi';
+type Theme = 'slate' | 'midnight';
 
 // Helper function to convert a string to title case
 const toTitleCase = (str: string) => str.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
@@ -84,6 +85,7 @@ const generateHistoryItemName = (goal: Goal | { id: string; nameKey: string }, f
 // Main App Component
 export default function App() {
   const [language, setLanguage] = useState<Language>('en');
+  const [theme, setTheme] = useState<Theme>('slate');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
   const [formData, setFormData] = useState<Record<string, string>>({});
@@ -97,6 +99,7 @@ export default function App() {
   const [generatedPrompt, setGeneratedPrompt] = useState<PromptObject | null>(null);
   const [promptHistory, setPromptHistory] = useState<HistoryItem[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
+  const [currentPromptHistoryId, setCurrentPromptHistoryId] = useState<string | null>(null);
 
   // State for dynamic technique UI
   const [fewShotExamples, setFewShotExamples] = useState<{input: string; output: string}[]>([{ input: '', output: '' }]);
@@ -118,6 +121,12 @@ export default function App() {
   const [isAiConfigModalOpen, setIsAiConfigModalOpen] = useState(false);
   const [editingAiConfig, setEditingAiConfig] = useState<AiConfig | null>(null);
 
+  // Chat Modal State
+  const [isChatModalOpen, setIsChatModalOpen] = useState(false);
+  const [chatSystemPrompt, setChatSystemPrompt] = useState('');
+  const [testingHistoryItemId, setTestingHistoryItemId] = useState<string | null>(null);
+
+  
   // Reset technique-specific state when technique changes
   useEffect(() => {
     if (selectedTechniqueId !== 'few-shot') {
@@ -144,6 +153,9 @@ export default function App() {
       const storedActiveConfigId = localStorage.getItem('activeAiConfigId');
       if(storedActiveConfigId) setActiveAiConfigId(storedActiveConfigId);
 
+      const storedTheme = localStorage.getItem('appTheme') as Theme;
+      if (storedTheme) setTheme(storedTheme);
+
     } catch (error) {
       console.error("Failed to load data from localStorage", error);
     }
@@ -156,10 +168,11 @@ export default function App() {
       localStorage.setItem('promptFolders', JSON.stringify(folders));
       localStorage.setItem('aiConfigs', JSON.stringify(aiConfigs));
       localStorage.setItem('activeAiConfigId', activeAiConfigId);
+      localStorage.setItem('appTheme', theme);
     } catch (error) {
       console.error("Failed to save data to localStorage", error);
     }
-  }, [promptHistory, folders, aiConfigs, activeAiConfigId]);
+  }, [promptHistory, folders, aiConfigs, activeAiConfigId, theme]);
 
   const t = useCallback((key: string): string => {
     const keys = key.split('.');
@@ -184,6 +197,7 @@ export default function App() {
     setFormData({});
     setGeneratedPrompt(null);
     setAiSuggestion(null);
+    setCurrentPromptHistoryId(null);
     setFewShotExamples([{ input: '', output: '' }]);
     setRagContext('');
   };
@@ -301,6 +315,7 @@ export default function App() {
             }
         };
         setPromptHistory(prev => [newHistoryItem, ...prev]);
+        setCurrentPromptHistoryId(newHistoryItem.id);
       }
   };
   
@@ -510,6 +525,7 @@ ${currentPromptText}
           }
       };
       setPromptHistory(prev => [newHistoryItem, ...prev]);
+      setCurrentPromptHistoryId(newHistoryItem.id);
 
     } catch (error) {
         console.error("Error calling AI for improvement:", error);
@@ -656,6 +672,7 @@ ${promptText}
           generatorState: { ...originalHistoryItem.generatorState, ragContext: promptText }
       };
       setPromptHistory(prev => [aiHistoryItem, originalHistoryItem, ...prev]);
+      setCurrentPromptHistoryId(aiHistoryItem.id);
 
     } catch (error) {
         console.error("Error calling AI for improvement:", error);
@@ -684,6 +701,7 @@ ${promptText}
         setRagContext(generatorState.ragContext || '');
         setGeneratedPrompt(item.promptObject);
         setAiSuggestion(null);
+        setCurrentPromptHistoryId(item.id);
         window.scrollTo(0, 0);
         setIsSidebarOpen(false);
     };
@@ -697,7 +715,9 @@ ${promptText}
     };
     
     const handleClearHistory = () => {
-        setPromptHistory([]);
+        if (window.confirm(t('buttons.clearAllConfirm'))) {
+            setPromptHistory([]);
+        }
     };
 
     // Folder Handlers
@@ -752,12 +772,41 @@ ${promptText}
         setIsAiConfigModalOpen(true);
     };
 
+    // Chat Test Handlers
+    const handleOpenChatTest = (historyId: string, promptText: string) => {
+        setChatSystemPrompt(promptText);
+        setTestingHistoryItemId(historyId);
+        setIsChatModalOpen(true);
+    };
+    
+    const handleSaveChat = (messages: ChatMessage[]) => {
+        if (!testingHistoryItemId) return;
+        
+        setPromptHistory(prev => prev.map(item => {
+            if (item.id === testingHistoryItemId) {
+                const newSession: ChatSession = {
+                    id: new Date().toISOString(),
+                    timestamp: Date.now(),
+                    messages: messages,
+                };
+                const updatedSessions = item.chatSessions ? [...item.chatSessions, newSession] : [newSession];
+                return { ...item, chatSessions: updatedSessions };
+            }
+            return item;
+        }));
+    };
+
   return (
-    <div className="min-h-screen bg-slate-900 text-white font-sans flex">
+    <div className={`theme-${theme} min-h-screen bg-bg-primary text-text-primary font-sans flex`}>
        <Sidebar 
           isOpen={isSidebarOpen} 
           onClose={() => setIsSidebarOpen(false)} 
           t={t}
+          // Display Props
+          language={language}
+          onLangChange={setLanguage}
+          theme={theme}
+          onThemeChange={setTheme}
           // History Props
           history={promptHistory}
           categories={CATEGORIES}
@@ -782,7 +831,7 @@ ${promptText}
 
       <main className={`flex-grow transition-all duration-300 ${isSidebarOpen ? 'md:ml-80' : 'ml-0'}`}>
         <div className="max-w-4xl mx-auto p-4 md:p-8">
-            <Header t={t} language={language} onLangChange={setLanguage} onSidebarToggle={() => setIsSidebarOpen(!isSidebarOpen)} />
+            <Header t={t} />
 
             <WizardStep title={t('steps.step1')} isComplete={!!selectedCategoryId}>
             <CategorySelector selectedId={selectedCategoryId} onSelect={handleCategorySelect} t={t} />
@@ -848,7 +897,7 @@ ${promptText}
                 <button
                     onClick={handleGenerateClick}
                     disabled={!isFormValid}
-                    className={`w-full md:w-auto disabled:bg-slate-600 disabled:cursor-not-allowed disabled:text-slate-400 bg-teal-500 hover:bg-teal-400 text-white font-bold py-3 px-8 rounded-lg shadow-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-teal-300 ${isFormValid ? 'animate-pulse' : ''}`}
+                    className={`w-full md:w-auto disabled:bg-bg-tertiary disabled:cursor-not-allowed disabled:text-text-tertiary bg-accent-primary hover:bg-accent-primary-hover text-white font-bold py-3 px-8 rounded-lg shadow-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-accent-primary/50 ${isFormValid ? 'animate-pulse' : ''}`}
                 >
                     {t('buttons.buildPrompt')}
                 </button>
@@ -856,7 +905,7 @@ ${promptText}
                     <button
                         onClick={handleImproveWithAi}
                         disabled={!isFormValid || isImproving}
-                        className="w-full md:w-auto flex items-center justify-center gap-2 disabled:bg-slate-600 disabled:cursor-not-allowed disabled:text-slate-400 bg-indigo-500 hover:bg-indigo-400 text-white font-bold py-3 px-8 rounded-lg shadow-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-indigo-300"
+                        className="w-full md:w-auto flex items-center justify-center gap-2 disabled:bg-bg-tertiary disabled:cursor-not-allowed disabled:text-text-tertiary bg-accent-secondary hover:bg-accent-secondary-hover text-white font-bold py-3 px-8 rounded-lg shadow-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-accent-secondary/50"
                     >
                         {isImproving ? (
                             <>
@@ -876,7 +925,7 @@ ${promptText}
                 </Tooltip>
                  <button
                     onClick={() => setIsImportModalOpen(true)}
-                    className="w-full md:w-auto flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold py-3 px-8 rounded-lg shadow-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-slate-500"
+                    className="w-full md:w-auto flex items-center justify-center gap-2 bg-bg-tertiary hover:bg-border-secondary text-text-secondary font-bold py-3 px-8 rounded-lg shadow-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-border-secondary/50"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>
                     {t('buttons.importAndImprove')}
@@ -887,18 +936,28 @@ ${promptText}
             
             {generatedPrompt && (
             <div className="mt-10">
-                <PromptOutput prompt={generatedPrompt} t={t} />
+                <PromptOutput prompt={generatedPrompt} t={t} onTestInChat={handleOpenChatTest} historyId={currentPromptHistoryId} />
             </div>
             )}
 
             {aiSuggestion && (
             <div className="mt-6">
-                <AiSuggestionOutput suggestion={aiSuggestion} t={t} />
+                <AiSuggestionOutput suggestion={aiSuggestion} t={t} onTestInChat={handleOpenChatTest} historyId={currentPromptHistoryId} />
             </div>
             )}
         </div>
       </main>
       
+      <div className="fixed bottom-6 right-6 z-40">
+        <button
+            onClick={() => setIsSidebarOpen(true)}
+            className="bg-accent-primary hover:bg-accent-primary-hover text-white rounded-full p-4 shadow-lg transition-transform transform hover:scale-110 focus:outline-none focus:ring-4 focus:ring-accent-primary/50"
+            aria-label={t('sidebar.toggle')}
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+        </button>
+      </div>
+
       <AiConfigModal
         isOpen={isAiConfigModalOpen}
         onClose={() => setIsAiConfigModalOpen(false)}
@@ -914,6 +973,16 @@ ${promptText}
         isImproving={isImproving}
         t={t}
       />
+
+        <ChatModal
+            isOpen={isChatModalOpen}
+            onClose={() => setIsChatModalOpen(false)}
+            systemPrompt={chatSystemPrompt}
+            activeAiConfigId={activeAiConfigId}
+            aiConfigs={aiConfigs}
+            onSaveChat={handleSaveChat}
+            t={t}
+        />
     </div>
   );
 }
@@ -925,36 +994,40 @@ const Tooltip: React.FC<{ text: string; children: React.ReactNode }> = ({ text, 
   return (
     <div className="relative flex items-center group">
       {children}
-      <div className="absolute left-0 w-max max-w-xs bottom-full mb-2 hidden group-hover:block bg-slate-900 text-white text-xs rounded-md p-2 border border-slate-600 shadow-lg z-10">
+      <div className="absolute left-0 w-max max-w-xs bottom-full mb-2 hidden group-hover:block bg-bg-primary text-text-primary text-xs rounded-md p-2 border border-border-primary shadow-lg z-10">
         {text}
       </div>
     </div>
   );
 };
 
-interface HeaderProps {
-    t: (key: string) => string;
-    language: Language;
-    onLangChange: (lang: Language) => void;
-    onSidebarToggle: () => void;
-}
-const Header: React.FC<HeaderProps> = ({ t, language, onLangChange, onSidebarToggle }) => (
-  <header className="text-center mb-10 relative">
-    <div className="absolute top-0 left-0">
-         <button onClick={onSidebarToggle} className="p-2 rounded-full bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors" aria-label={t('sidebar.toggle')}>
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
-        </button>
-    </div>
-    <div className="absolute top-0 right-0 flex items-center space-x-2">
-      <button onClick={() => onLangChange('en')} className={`px-3 py-1 text-xs font-semibold rounded transition-colors ${language === 'en' ? 'bg-teal-500 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}>EN</button>
-      <button onClick={() => onLangChange('vi')} className={`px-3 py-1 text-xs font-semibold rounded transition-colors ${language === 'vi' ? 'bg-teal-500 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}>VI</button>
-    </div>
-    <h1 className="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-cyan-500 pt-10 md:pt-0">
+const Header: React.FC<{ t: (key: string) => string; }> = ({ t }) => (
+  <header className="text-center mb-10">
+    <h1 className="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-accent-primary to-accent-secondary">
       {t('app.title')}
     </h1>
-    <p className="mt-3 text-lg text-slate-400">{t('app.subtitle')}</p>
+    <p className="mt-3 text-lg text-text-tertiary">{t('app.subtitle')}</p>
   </header>
 );
+
+const ThemeSelector: React.FC<{theme: Theme; onThemeChange: (theme: Theme) => void; t: (key: string) => string;}> = ({ theme, onThemeChange, t }) => (
+    <div>
+        <label className="block text-sm font-medium text-text-secondary mb-2">{t('theme.title')}</label>
+        <div className="p-1 bg-bg-primary rounded-lg flex items-center space-x-1">
+            <Tooltip text={t('theme.slate')}>
+                <button onClick={() => onThemeChange('slate')} className={`w-full p-1.5 rounded-md transition-colors text-sm font-semibold ${theme === 'slate' ? 'bg-accent-primary text-white' : 'hover:bg-bg-tertiary'}`}>
+                    {t('theme.slate')}
+                </button>
+            </Tooltip>
+            <Tooltip text={t('theme.midnight')}>
+                <button onClick={() => onThemeChange('midnight')} className={`w-full p-1.5 rounded-md transition-colors text-sm font-semibold ${theme === 'midnight' ? 'bg-accent-primary text-white' : 'hover:bg-bg-tertiary'}`}>
+                    {t('theme.midnight')}
+                </button>
+            </Tooltip>
+        </div>
+    </div>
+);
+
 
 interface WizardStepProps {
   title: string;
@@ -962,12 +1035,12 @@ interface WizardStepProps {
   children: React.ReactNode;
 }
 const WizardStep: React.FC<WizardStepProps> = ({ title, isComplete, children }) => (
-  <section className="mb-8 p-6 bg-slate-800/50 rounded-xl border border-slate-700 shadow-lg">
+  <section className="mb-8 p-6 bg-bg-secondary/50 rounded-xl border border-border-primary shadow-lg transition-all duration-300">
     <div className="flex items-center mb-4">
-      <div className={`w-6 h-6 rounded-full flex items-center justify-center mr-3 ${isComplete ? 'bg-teal-500' : 'bg-slate-600'}`}>
+      <div className={`w-6 h-6 rounded-full flex items-center justify-center mr-3 transition-colors ${isComplete ? 'bg-accent-primary' : 'bg-bg-tertiary'}`}>
         {isComplete && <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
       </div>
-      <h2 className="text-2xl font-bold text-slate-200">{title}</h2>
+      <h2 className="text-2xl font-bold text-text-primary">{title}</h2>
     </div>
     <div className="pl-9">{children}</div>
   </section>
@@ -985,10 +1058,10 @@ const CategorySelector: React.FC<CategorySelectorProps> = ({ selectedId, onSelec
       <button
         key={cat.id}
         onClick={() => onSelect(cat.id)}
-        className={`p-4 rounded-lg text-center transition-all duration-200 border-2 ${selectedId === cat.id ? 'bg-teal-500/20 border-teal-500' : 'bg-slate-700/50 border-slate-600 hover:border-teal-400 hover:bg-slate-700'}`}
+        className={`p-4 rounded-lg text-center transition-all duration-200 border-2 ${selectedId === cat.id ? 'bg-accent-primary/20 border-accent-primary' : 'bg-bg-tertiary/50 border-border-secondary hover:border-accent-primary hover:bg-bg-tertiary'}`}
       >
-        <div className="mx-auto text-teal-400">{cat.icon}</div>
-        <p className="mt-2 font-semibold text-slate-200">{t(cat.nameKey)}</p>
+        <div className="mx-auto text-accent-primary">{cat.icon}</div>
+        <p className="mt-2 font-semibold text-text-primary">{t(cat.nameKey)}</p>
       </button>
     ))}
   </div>
@@ -1008,12 +1081,12 @@ const GoalSelector: React.FC<GoalSelectorProps> = ({ category, selectedId, onSel
           <button
             key={goal.id}
             onClick={() => onSelect(goal.id)}
-            className={`w-full text-left p-4 rounded-lg transition-all duration-200 border-2 flex items-center ${selectedId === goal.id ? 'bg-teal-500/20 border-teal-500' : 'bg-slate-700/50 border-slate-600 hover:border-teal-400 hover:bg-slate-700'}`}
+            className={`w-full text-left p-4 rounded-lg transition-all duration-200 border-2 flex items-center ${selectedId === goal.id ? 'bg-accent-primary/20 border-accent-primary' : 'bg-bg-tertiary/50 border-border-secondary hover:border-accent-primary hover:bg-bg-tertiary'}`}
           >
-            <div className={`w-3 h-3 rounded-full mr-4 ${selectedId === goal.id ? 'bg-teal-400' : 'bg-slate-500'}`}></div>
+            <div className={`w-3 h-3 rounded-full mr-4 transition-colors ${selectedId === goal.id ? 'bg-accent-primary' : 'bg-text-tertiary'}`}></div>
             <div>
-                <h3 className="font-bold text-slate-100">{t(goal.nameKey)}</h3>
-                <p className="text-sm text-slate-400">{t(goal.descriptionKey)}</p>
+                <h3 className="font-bold text-text-primary">{t(goal.nameKey)}</h3>
+                <p className="text-sm text-text-tertiary">{t(goal.descriptionKey)}</p>
             </div>
           </button>
         ))}
@@ -1035,7 +1108,7 @@ const InputForm: React.FC<InputFormProps> = ({ goal, formData, onChange, t, onGe
       <div key={field.id}>
         <div className="flex justify-between items-center mb-1">
             <Tooltip text={field.tooltipKey ? t(field.tooltipKey) : ''}>
-              <label htmlFor={field.id} className="block text-sm font-medium text-slate-300 cursor-help">
+              <label htmlFor={field.id} className="block text-sm font-medium text-text-secondary cursor-help">
                 {t(field.labelKey)} {field.required && <span className="text-red-400">*</span>}
               </label>
             </Tooltip>
@@ -1044,7 +1117,7 @@ const InputForm: React.FC<InputFormProps> = ({ goal, formData, onChange, t, onGe
                     <button
                         onClick={onGenerateTasks}
                         disabled={isGeneratingTasks || !formData.custom_target?.trim()}
-                        className="flex items-center gap-1.5 px-2 py-1 text-xs font-semibold rounded-md transition-colors text-indigo-300 bg-indigo-900/50 hover:bg-indigo-900/80 disabled:bg-slate-700 disabled:text-slate-400 disabled:cursor-not-allowed"
+                        className="flex items-center gap-1.5 px-2 py-1 text-xs font-semibold rounded-md transition-colors text-accent-secondary bg-accent-secondary/10 hover:bg-accent-secondary/20 disabled:bg-bg-tertiary disabled:text-text-tertiary disabled:cursor-not-allowed"
                     >
                          {isGeneratingTasks ? (
                              <>
@@ -1068,7 +1141,7 @@ const InputForm: React.FC<InputFormProps> = ({ goal, formData, onChange, t, onGe
             onChange={(e) => onChange(field.id, e.target.value)}
             placeholder={t(field.placeholderKey)}
             rows={field.id === 'custom_tasks' ? 8 : 4}
-            className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-slate-100 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition"
+            className="w-full bg-bg-tertiary border border-border-secondary rounded-md p-2 text-text-primary focus:ring-2 focus:ring-accent-primary focus:border-accent-primary transition"
           />
         ) : (
           <input
@@ -1077,7 +1150,7 @@ const InputForm: React.FC<InputFormProps> = ({ goal, formData, onChange, t, onGe
             value={formData[field.id] || ''}
             onChange={(e) => onChange(field.id, e.target.value)}
             placeholder={t(field.placeholderKey)}
-            className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-slate-100 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition"
+            className="w-full bg-bg-tertiary border border-border-secondary rounded-md p-2 text-text-primary focus:ring-2 focus:ring-accent-primary focus:border-accent-primary transition"
           />
         )}
       </div>
@@ -1094,14 +1167,14 @@ interface StyleSelectorProps {
 }
 const StyleSelector: React.FC<StyleSelectorProps> = ({ title, options, selectedId, onSelect, t }) => (
     <div>
-      <h3 className="text-lg font-semibold text-slate-200 mb-3">{title}</h3>
+      <h3 className="text-lg font-semibold text-text-primary mb-3">{title}</h3>
       <div className="space-y-2">
         {options.map(style => (
-          <label key={style.id} className={`flex items-start p-3 rounded-md cursor-pointer transition-all border-2 ${selectedId === style.id ? 'bg-teal-500/10 border-teal-500' : 'border-slate-700 hover:border-slate-500'}`}>
-            <input type="radio" name={title} checked={selectedId === style.id} onChange={() => onSelect(style.id)} className="mt-1 h-4 w-4 text-teal-600 bg-slate-600 border-slate-500 focus:ring-teal-500" />
+          <label key={style.id} className={`flex items-start p-3 rounded-md cursor-pointer transition-all border-2 ${selectedId === style.id ? 'bg-accent-primary/10 border-accent-primary' : 'border-border-primary hover:border-border-secondary'}`}>
+            <input type="radio" name={title} checked={selectedId === style.id} onChange={() => onSelect(style.id)} className="mt-1 h-4 w-4 text-accent-primary bg-bg-tertiary border-border-secondary focus:ring-accent-primary" />
             <div className="ml-3 text-sm">
                 <Tooltip text={t(style.descriptionKey)}>
-                    <span className="font-medium text-slate-100 cursor-help">{t(style.nameKey)}</span>
+                    <span className="font-medium text-text-primary cursor-help">{t(style.nameKey)}</span>
                 </Tooltip>
             </div>
           </label>
@@ -1122,7 +1195,7 @@ const CustomizationPanel: React.FC<CustomizationPanelProps> = ({ customizations,
 
   return (
     <div>
-        <h3 className="text-lg font-semibold text-slate-200 mb-3">{t('customizations.title')}</h3>
+        <h3 className="text-lg font-semibold text-text-primary mb-3">{t('customizations.title')}</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Select id="tone" label={t('customizations.tone')} options={TONES} value={customizations.tone} onChange={(val) => handleChange('tone', val)} />
           <Select id="format" label={t('customizations.format')} options={FORMATS} value={customizations.format} onChange={(val) => handleChange('format', val)} />
@@ -1141,8 +1214,8 @@ interface SelectProps {
 }
 const Select: React.FC<SelectProps> = ({ id, label, options, value, onChange}) => (
     <div>
-        <label htmlFor={id} className="block text-sm font-medium text-slate-300 mb-1">{label}</label>
-        <select id={id} value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-slate-100 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition">
+        <label htmlFor={id} className="block text-sm font-medium text-text-secondary mb-1">{label}</label>
+        <select id={id} value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-bg-tertiary border border-border-secondary rounded-md p-2 text-text-primary focus:ring-2 focus:ring-accent-primary focus:border-accent-primary transition">
             {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
         </select>
     </div>
@@ -1154,8 +1227,10 @@ const Select: React.FC<SelectProps> = ({ id, label, options, value, onChange}) =
 interface PromptOutputProps {
     prompt: PromptObject;
     t: (key: string) => string;
+    onTestInChat: (historyId: string, promptText: string) => void;
+    historyId: string | null;
 }
-const PromptOutput: React.FC<PromptOutputProps> = ({ prompt, t }) => {
+const PromptOutput: React.FC<PromptOutputProps> = ({ prompt, t, onTestInChat, historyId }) => {
   const [copied, setCopied] = useState(false);
   
   const textPrompt = useMemo(() => buildTextPrompt(prompt, t), [prompt, t]);
@@ -1200,32 +1275,47 @@ const PromptOutput: React.FC<PromptOutputProps> = ({ prompt, t }) => {
   }
 
   return (
-    <div className="bg-slate-800 rounded-xl border border-slate-700 shadow-lg">
-      <div className="p-4 border-b border-slate-700 flex justify-between items-center">
-        <h2 className="text-xl font-bold text-slate-200">{t('output.title')}</h2>
+    <div className="bg-bg-secondary rounded-xl border border-border-primary shadow-lg">
+      <div className="p-4 border-b border-border-primary flex justify-between items-center flex-wrap gap-2">
+        <h2 className="text-xl font-bold text-text-primary">{t('output.title')}</h2>
         <div className="flex items-center space-x-2 flex-wrap gap-1">
-           <button onClick={() => handleDownload('txt')} className="px-3 py-1 text-xs font-semibold text-slate-300 bg-slate-700 rounded hover:bg-slate-600 transition">TXT</button>
-           <button onClick={() => handleDownload('md')} className="px-3 py-1 text-xs font-semibold text-slate-300 bg-slate-700 rounded hover:bg-slate-600 transition">MD</button>
-           <button onClick={() => handleDownload('xml')} className="px-3 py-1 text-xs font-semibold text-slate-300 bg-slate-700 rounded hover:bg-slate-600 transition">XML</button>
-           <button onClick={() => handleDownload('json')} className="px-3 py-1 text-xs font-semibold text-slate-300 bg-slate-700 rounded hover:bg-slate-600 transition">JSON</button>
-           <button onClick={() => handleDownload('yaml')} className="px-3 py-1 text-xs font-semibold text-slate-300 bg-slate-700 rounded hover:bg-slate-600 transition">YAML</button>
+           <button onClick={() => handleDownload('txt')} className="px-3 py-1 text-xs font-semibold text-text-secondary bg-bg-tertiary rounded hover:bg-border-secondary transition">TXT</button>
+           <button onClick={() => handleDownload('md')} className="px-3 py-1 text-xs font-semibold text-text-secondary bg-bg-tertiary rounded hover:bg-border-secondary transition">MD</button>
+           <button onClick={() => handleDownload('xml')} className="px-3 py-1 text-xs font-semibold text-text-secondary bg-bg-tertiary rounded hover:bg-border-secondary transition">XML</button>
+           <button onClick={() => handleDownload('json')} className="px-3 py-1 text-xs font-semibold text-text-secondary bg-bg-tertiary rounded hover:bg-border-secondary transition">JSON</button>
+           <button onClick={() => handleDownload('yaml')} className="px-3 py-1 text-xs font-semibold text-text-secondary bg-bg-tertiary rounded hover:bg-border-secondary transition">YAML</button>
         </div>
       </div>
       <div className="relative p-4">
-        <button
-          onClick={handleCopy}
-          className="absolute top-6 right-4 p-2 bg-slate-700 rounded-md hover:bg-slate-600 transition"
-          aria-label={t('buttons.copy')}
-        >
-          {copied ? (
-             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-          )}
-        </button>
-        <pre className="whitespace-pre-wrap text-slate-300 text-sm bg-slate-900/50 p-4 rounded-md overflow-x-auto">
+        <div className="absolute top-6 right-4 flex flex-col gap-2">
+            <button
+              onClick={handleCopy}
+              className="p-2 bg-bg-tertiary rounded-md hover:bg-border-secondary transition"
+              aria-label={t('buttons.copy')}
+            >
+              {copied ? (
+                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+              )}
+            </button>
+        </div>
+        <pre className="whitespace-pre-line font-mono text-text-secondary text-sm bg-bg-primary/50 p-4 rounded-md overflow-x-auto">
           <code>{textPrompt}</code>
         </pre>
+      </div>
+      <div className="p-4 border-t border-border-primary">
+        <button 
+            onClick={() => historyId && onTestInChat(historyId, textPrompt)}
+            disabled={!historyId}
+            className="w-full flex items-center justify-center gap-2 bg-accent-primary/80 hover:bg-accent-primary text-white font-bold py-2 px-4 rounded-lg shadow-md transition-all duration-200 transform hover:scale-105 disabled:bg-bg-tertiary disabled:cursor-not-allowed"
+        >
+             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z" />
+                <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h1a2 2 0 002-2V9a2 2 0 00-2-2h-1z" />
+            </svg>
+            {t('buttons.testInChat')}
+        </button>
       </div>
     </div>
   );
@@ -1236,8 +1326,10 @@ const PromptOutput: React.FC<PromptOutputProps> = ({ prompt, t }) => {
 interface AiSuggestionOutputProps {
     suggestion: string;
     t: (key: string) => string;
+    onTestInChat: (historyId: string, promptText: string) => void;
+    historyId: string | null;
 }
-const AiSuggestionOutput: React.FC<AiSuggestionOutputProps> = ({ suggestion, t }) => {
+const AiSuggestionOutput: React.FC<AiSuggestionOutputProps> = ({ suggestion, t, onTestInChat, historyId }) => {
     const [copied, setCopied] = useState(false);
 
     const handleCopy = () => {
@@ -1247,28 +1339,41 @@ const AiSuggestionOutput: React.FC<AiSuggestionOutputProps> = ({ suggestion, t }
     };
 
     return (
-        <div className="bg-indigo-900/50 rounded-xl border border-indigo-700 shadow-lg">
-            <div className="p-4 border-b border-indigo-700 flex justify-between items-center">
-                <h2 className="text-xl font-bold text-slate-200 flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-indigo-400" viewBox="0 0 20 20" fill="currentColor"><path d="M5 2a1 1 0 00-1 1v1.586l-2.707 2.707a1 1 0 000 1.414l4 4a1 1 0 001.414 0l4-4a1 1 0 000-1.414L8 4.586V3a1 1 0 00-1-1H5zM2 5h8v.586L6.707 8.293a1 1 0 00-1.414 0L2 5.586V5zm6 5H4v4.586l2.293-2.293a1 1 0 011.414 0L10 15.586V10zm4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H13V9h1.586l-1.293-1.293a1 1 0 010-1.414z" /></svg>
+        <div className="bg-accent-secondary/10 rounded-xl border border-accent-secondary/30 shadow-lg">
+            <div className="p-4 border-b border-accent-secondary/30 flex justify-between items-center">
+                <h2 className="text-xl font-bold text-text-primary flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-accent-secondary" viewBox="0 0 20 20" fill="currentColor"><path d="M5 2a1 1 0 00-1 1v1.586l-2.707 2.707a1 1 0 000 1.414l4 4a1 1 0 001.414 0l4-4a1 1 0 000-1.414L8 4.586V3a1 1 0 00-1-1H5zM2 5h8v.586L6.707 8.293a1 1 0 00-1.414 0L2 5.586V5zm6 5H4v4.586l2.293-2.293a1 1 0 011.414 0L10 15.586V10zm4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H13V9h1.586l-1.293-1.293a1 1 0 010-1.414z" /></svg>
                     {t('output.aiSuggestionTitle')}
                 </h2>
             </div>
             <div className="relative p-4">
                 <button
                     onClick={handleCopy}
-                    className="absolute top-6 right-4 p-2 bg-indigo-700 rounded-md hover:bg-indigo-600 transition"
+                    className="absolute top-6 right-4 p-2 bg-accent-secondary/20 rounded-md hover:bg-accent-secondary/30 transition"
                     aria-label={t('buttons.copy')}
                 >
                     {copied ? (
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                     ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                     )}
                 </button>
-                <pre className="whitespace-pre-wrap text-slate-300 text-sm bg-slate-900/50 p-4 rounded-md overflow-x-auto">
+                <pre className="whitespace-pre-line font-mono text-text-secondary text-sm bg-bg-primary/50 p-4 rounded-md overflow-x-auto">
                     <code>{suggestion}</code>
                 </pre>
+            </div>
+             <div className="p-4 border-t border-accent-secondary/30">
+                <button 
+                    onClick={() => historyId && onTestInChat(historyId, suggestion)}
+                    disabled={!historyId}
+                    className="w-full flex items-center justify-center gap-2 bg-accent-secondary/80 hover:bg-accent-secondary text-white font-bold py-2 px-4 rounded-lg shadow-md transition-all duration-200 transform hover:scale-105 disabled:bg-bg-tertiary disabled:cursor-not-allowed"
+                >
+                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z" />
+                        <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h1a2 2 0 002-2V9a2 2 0 00-2-2h-1z" />
+                    </svg>
+                    {t('buttons.testInChat')}
+                </button>
             </div>
         </div>
     );
@@ -1298,30 +1403,30 @@ const FewShotEditor: React.FC<FewShotEditorProps> = ({ examples, setExamples, t 
     };
 
     return (
-        <div className="mt-4 p-4 bg-slate-900/50 rounded-lg border border-slate-700">
-            <h4 className="text-md font-semibold text-slate-300 mb-3">{t('techniques.fewShotEditorTitle')}</h4>
+        <div className="mt-4 p-4 bg-bg-primary/50 rounded-lg border border-border-primary">
+            <h4 className="text-md font-semibold text-text-secondary mb-3">{t('techniques.fewShotEditorTitle')}</h4>
             <div className="space-y-4">
                 {examples.map((ex, index) => (
-                    <div key={index} className="p-3 bg-slate-700/50 rounded-md border border-slate-600 relative">
+                    <div key={index} className="p-3 bg-bg-tertiary/50 rounded-md border border-border-secondary relative">
                         <div className="space-y-2">
                              <div>
-                                <label className="text-xs font-medium text-slate-400">{t('techniques.inputLabel')}</label>
+                                <label className="text-xs font-medium text-text-tertiary">{t('techniques.inputLabel')}</label>
                                 <textarea 
                                     value={ex.input} 
                                     onChange={(e) => handleExampleChange(index, 'input', e.target.value)} 
                                     placeholder={t('techniques.inputPlaceholder')}
                                     rows={2}
-                                    className="w-full text-sm bg-slate-800 border border-slate-600 rounded-md p-2 text-slate-100 focus:ring-1 focus:ring-teal-500 focus:border-teal-500 transition"
+                                    className="w-full text-sm bg-bg-secondary border border-border-secondary rounded-md p-2 text-text-primary focus:ring-1 focus:ring-accent-primary focus:border-accent-primary transition"
                                 />
                             </div>
                             <div>
-                                <label className="text-xs font-medium text-slate-400">{t('techniques.outputLabel')}</label>
+                                <label className="text-xs font-medium text-text-tertiary">{t('techniques.outputLabel')}</label>
                                 <textarea 
                                     value={ex.output} 
                                     onChange={(e) => handleExampleChange(index, 'output', e.target.value)} 
                                     placeholder={t('techniques.outputPlaceholder')}
                                     rows={3}
-                                    className="w-full text-sm bg-slate-800 border border-slate-600 rounded-md p-2 text-slate-100 focus:ring-1 focus:ring-teal-500 focus:border-teal-500 transition"
+                                    className="w-full text-sm bg-bg-secondary border border-border-secondary rounded-md p-2 text-text-primary focus:ring-1 focus:ring-accent-primary focus:border-accent-primary transition"
                                 />
                             </div>
                         </div>
@@ -1333,7 +1438,7 @@ const FewShotEditor: React.FC<FewShotEditorProps> = ({ examples, setExamples, t 
                     </div>
                 ))}
             </div>
-            <button onClick={addExample} className="mt-4 px-3 py-1 text-sm font-semibold text-teal-300 bg-teal-900/50 rounded hover:bg-teal-900/80 transition">{t('techniques.addExample')}</button>
+            <button onClick={addExample} className="mt-4 px-3 py-1 text-sm font-semibold text-accent-primary bg-accent-primary/10 rounded hover:bg-accent-primary/20 transition">{t('techniques.addExample')}</button>
         </div>
     );
 };
@@ -1345,14 +1450,14 @@ interface RAGContextEditorProps {
 }
 const RAGContextEditor: React.FC<RAGContextEditorProps> = ({ context, setContext, t }) => {
     return (
-        <div className="mt-4 p-4 bg-slate-900/50 rounded-lg border border-slate-700">
-             <h4 className="text-md font-semibold text-slate-300 mb-2">{t('techniques.ragEditorTitle')}</h4>
+        <div className="mt-4 p-4 bg-bg-primary/50 rounded-lg border border-border-primary">
+             <h4 className="text-md font-semibold text-text-secondary mb-2">{t('techniques.ragEditorTitle')}</h4>
              <textarea 
                 value={context}
                 onChange={e => setContext(e.target.value)}
                 placeholder={t('techniques.ragContextPlaceholder')}
                 rows={8}
-                className="w-full text-sm bg-slate-800 border border-slate-600 rounded-md p-2 text-slate-100 focus:ring-1 focus:ring-teal-500 focus:border-teal-500 transition"
+                className="w-full text-sm bg-bg-secondary border border-border-secondary rounded-md p-2 text-text-primary focus:ring-1 focus:ring-accent-primary focus:border-accent-primary transition"
              />
         </div>
     );
@@ -1364,6 +1469,11 @@ interface SidebarProps {
     isOpen: boolean;
     onClose: () => void;
     t: (key: string) => string;
+    // Display props
+    language: Language;
+    onLangChange: (lang: Language) => void;
+    theme: Theme;
+    onThemeChange: (theme: Theme) => void;
     // History props
     history: HistoryItem[];
     categories: Category[];
@@ -1386,56 +1496,70 @@ interface SidebarProps {
     onDeleteAiConfig: (id: string) => void;
 }
 const Sidebar: React.FC<SidebarProps> = (props) => {
-    const { isOpen, onClose, t } = props;
+    const { isOpen, onClose, t, language, onLangChange, theme, onThemeChange } = props;
     const [activeTab, setActiveTab] = useState<'history' | 'settings'>('history');
 
     return (
         <>
-            <div className={`fixed inset-y-0 left-0 w-80 bg-slate-800 border-r border-slate-700 shadow-lg z-40 transform transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                <div className="flex justify-between items-center p-4 border-b border-slate-700">
-                    <h2 className="text-xl font-bold text-slate-200">{t('sidebar.title')}</h2>
-                    <button onClick={onClose} className="p-2 rounded-full text-slate-400 hover:bg-slate-700">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
-                </div>
-                
-                {/* Tabs */}
-                <div className="border-b border-slate-700">
-                    <nav className="flex space-x-1 p-1" aria-label="Tabs">
-                        <button onClick={() => setActiveTab('history')} className={`w-1/2 px-3 py-2 text-sm font-medium rounded-md ${activeTab === 'history' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}>{t('sidebar.historyTab')}</button>
-                        <button onClick={() => setActiveTab('settings')} className={`w-1/2 px-3 py-2 text-sm font-medium rounded-md ${activeTab === 'settings' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}>{t('sidebar.settingsTab')}</button>
-                    </nav>
-                </div>
+            <div className={`fixed inset-y-0 left-0 w-80 bg-bg-secondary border-r border-border-primary shadow-lg z-40 transform transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                <div className="flex flex-col h-full">
+                    <div className="flex justify-between items-center p-4 border-b border-border-primary flex-shrink-0">
+                        <h2 className="text-xl font-bold text-text-primary">{t('sidebar.title')}</h2>
+                        <button onClick={onClose} className="p-2 rounded-full text-text-tertiary hover:bg-bg-tertiary">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+                    
+                    <div className="border-b border-border-primary flex-shrink-0">
+                        <nav className="flex space-x-1 p-1" aria-label="Tabs">
+                            <button onClick={() => setActiveTab('history')} className={`w-1/2 px-3 py-2 text-sm font-medium rounded-md ${activeTab === 'history' ? 'bg-bg-tertiary text-text-primary' : 'text-text-tertiary hover:text-text-primary'}`}>{t('sidebar.historyTab')}</button>
+                            <button onClick={() => setActiveTab('settings')} className={`w-1/2 px-3 py-2 text-sm font-medium rounded-md ${activeTab === 'settings' ? 'bg-bg-tertiary text-text-primary' : 'text-text-tertiary hover:text-text-primary'}`}>{t('sidebar.settingsTab')}</button>
+                        </nav>
+                    </div>
 
-                <div className="p-4 overflow-y-auto h-[calc(100vh-117px)]">
-                    {activeTab === 'history' && (
-                        <PromptHistory 
-                            history={props.history}
-                            categories={props.categories}
-                            onLoad={props.onLoadHistory}
-                            onDelete={props.onDeleteHistory}
-                            onClear={props.onClearHistory}
-                            onRename={props.onRenameHistory}
-                            folders={props.folders}
-                            onAddFolder={props.onAddFolder}
-                            onRenameFolder={props.onRenameFolder}
-                            onDeleteFolder={props.onDeleteFolder}
-                            onMoveItemToFolder={props.onMoveItemToFolder}
-                            t={t}
-                        />
-                    )}
-                    {activeTab === 'settings' && (
-                         <AiConfigurationManager 
-                            configs={props.aiConfigs}
-                            // FIX: Corrected typo from `props.activeConfigId` to `props.activeAiConfigId`.
-                            activeConfigId={props.activeAiConfigId}
-                            onSetActive={props.onSetActiveAiConfig}
-                            onAdd={props.onAddAiConfig}
-                            onEdit={props.onEditAiConfig}
-                            onDelete={props.onDeleteAiConfig}
-                            t={t}
-                        />
-                    )}
+                    <div className="flex-grow p-4 overflow-y-auto">
+                        {activeTab === 'history' && (
+                            <PromptHistory 
+                                history={props.history}
+                                categories={props.categories}
+                                onLoad={props.onLoadHistory}
+                                onDelete={props.onDeleteHistory}
+                                onClear={props.onClearHistory}
+                                onRename={props.onRenameHistory}
+                                folders={props.folders}
+                                onAddFolder={props.onAddFolder}
+                                onRenameFolder={props.onRenameFolder}
+                                onDeleteFolder={props.onDeleteFolder}
+                                onMoveItemToFolder={props.onMoveItemToFolder}
+                                t={t}
+                            />
+                        )}
+                        {activeTab === 'settings' && (
+                            <AiConfigurationManager 
+                                configs={props.aiConfigs}
+                                activeConfigId={props.activeAiConfigId}
+                                onSetActive={props.onSetActiveAiConfig}
+                                onAdd={props.onAddAiConfig}
+                                onEdit={props.onEditAiConfig}
+                                onDelete={props.onDeleteAiConfig}
+                                t={t}
+                            />
+                        )}
+                    </div>
+
+                    <div className="flex-shrink-0 p-4 border-t border-border-primary bg-bg-primary/50">
+                        <h4 className="text-sm font-semibold text-text-tertiary mb-3">{t('sidebar.controlsTitle')}</h4>
+                        <div className="space-y-4">
+                            <ThemeSelector theme={theme} onThemeChange={onThemeChange} t={t} />
+                            <div>
+                                <label className="block text-sm font-medium text-text-secondary mb-2">{t('sidebar.language')}</label>
+                                <div className="flex items-center space-x-1 p-1 bg-bg-primary rounded-lg">
+                                    <button onClick={() => onLangChange('en')} className={`w-full px-3 py-1 text-sm font-semibold rounded-md transition-colors ${language === 'en' ? 'bg-accent-primary text-white' : 'text-text-secondary hover:bg-bg-tertiary'}`}>{t('sidebar.languageEnglish')}</button>
+                                    <button onClick={() => onLangChange('vi')} className={`w-full px-3 py-1 text-sm font-semibold rounded-md transition-colors ${language === 'vi' ? 'bg-accent-primary text-white' : 'text-text-secondary hover:bg-bg-tertiary'}`}>{t('sidebar.languageVietnamese')}</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             {isOpen && <div className="fixed inset-0 bg-black/60 z-30 md:hidden" onClick={onClose}></div>}
@@ -1537,8 +1661,8 @@ const PromptHistory: React.FC<PromptHistoryProps> = ({ history, categories, onLo
     if (history.length === 0) {
         return (
             <section>
-                 <h3 className="text-xl font-bold text-slate-200 mb-4">{t('history.title')}</h3>
-                 <p className="text-center text-slate-400 py-4">{t('history.empty')}</p>
+                 <h3 className="text-xl font-bold text-text-primary mb-4">{t('history.title')}</h3>
+                 <p className="text-center text-text-tertiary py-4">{t('history.empty')}</p>
             </section>
         )
     }
@@ -1547,8 +1671,8 @@ const PromptHistory: React.FC<PromptHistoryProps> = ({ history, categories, onLo
         <section>
             <div className="mb-6">
                 <div className="flex justify-between items-center mb-2">
-                    <h4 className="text-lg font-bold text-slate-300">{t('history.foldersTitle')}</h4>
-                    <button onClick={onAddFolder} className="px-2 py-1 text-xs font-semibold text-teal-300 bg-teal-900/50 rounded hover:bg-teal-900/80 transition">{t('history.addFolder')}</button>
+                    <h4 className="text-lg font-bold text-text-secondary">{t('history.foldersTitle')}</h4>
+                    <button onClick={onAddFolder} className="px-2 py-1 text-xs font-semibold text-accent-primary bg-accent-primary/10 rounded hover:bg-accent-primary/20 transition">{t('history.addFolder')}</button>
                 </div>
                 <div className="space-y-1">
                     <FolderItem name={t('history.allPrompts')} isActive={selectedFolderId === 'all'} onClick={() => setSelectedFolderId('all')} />
@@ -1570,20 +1694,20 @@ const PromptHistory: React.FC<PromptHistoryProps> = ({ history, categories, onLo
                 </div>
             </div>
 
-            <div className="flex flex-col justify-between items-start mb-4 gap-4 border-t border-slate-700 pt-4">
-                 <h3 className="text-xl font-bold text-slate-200">{t('history.title')}</h3>
+            <div className="flex flex-col justify-between items-start mb-4 gap-4 border-t border-border-primary pt-4">
+                 <h3 className="text-xl font-bold text-text-primary">{t('history.title')}</h3>
                  <div className="w-full flex flex-col items-center gap-2">
                     <input 
                         type="text"
                         placeholder={t('history.searchPlaceholder')}
                         value={searchQuery}
                         onChange={e => setSearchQuery(e.target.value)}
-                        className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-sm text-slate-100 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition"
+                        className="w-full bg-bg-tertiary border border-border-secondary rounded-md p-2 text-sm text-text-primary focus:ring-2 focus:ring-accent-primary focus:border-accent-primary transition"
                     />
                      <select 
                         value={filterCategory}
                         onChange={e => setFilterCategory(e.target.value)}
-                        className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-sm text-slate-100 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition"
+                        className="w-full bg-bg-tertiary border border-border-secondary rounded-md p-2 text-sm text-text-primary focus:ring-2 focus:ring-accent-primary focus:border-accent-primary transition"
                     >
                         <option value="all">{t('history.allCategories')}</option>
                         {categories.map(cat => (
@@ -1595,9 +1719,9 @@ const PromptHistory: React.FC<PromptHistoryProps> = ({ history, categories, onLo
             </div>
             <div className="space-y-2 max-h-96 overflow-y-auto pr-2">
                 {filteredHistory.length > 0 ? filteredHistory.map(item => (
-                    <div key={item.id} className="bg-slate-900/70 rounded-lg border border-slate-700 transition-shadow hover:shadow-md hover:border-slate-600">
+                    <div key={item.id} className="bg-bg-primary/70 rounded-lg border border-border-primary transition-shadow hover:shadow-md hover:border-border-secondary">
                         <div className="p-3 flex items-center gap-4">
-                              <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${item.promptObject.isAiSuggestion ? 'bg-indigo-900/50 text-indigo-400' : item.goalNameKey === 'history.importedPrompt' ? 'bg-slate-700 text-slate-300' : 'bg-slate-800 text-teal-400'}`}>
+                            <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${item.promptObject.isAiSuggestion ? 'bg-accent-secondary/20 text-accent-secondary' : item.goalNameKey === 'history.importedPrompt' ? 'bg-bg-tertiary text-text-tertiary' : 'bg-bg-secondary text-accent-primary'}`}>
                                 {item.promptObject.isAiSuggestion 
                                     ? <AiSuggestionIcon /> 
                                     : item.goalNameKey === 'history.importedPrompt' 
@@ -1613,35 +1737,51 @@ const PromptHistory: React.FC<PromptHistoryProps> = ({ history, categories, onLo
                                         onChange={(e) => setEditingName(e.target.value)}
                                         onBlur={() => handleRenameSave(item.id)}
                                         onKeyDown={(e) => e.key === 'Enter' && handleRenameSave(item.id)}
-                                        className="w-full bg-slate-600 border border-slate-500 rounded px-1 py-0 text-sm"
+                                        className="w-full bg-border-secondary border border-border-primary rounded px-1 py-0 text-sm"
                                         autoFocus
                                     />
                                 ) : (
-                                    <p className={`font-semibold truncate ${item.promptObject.isAiSuggestion ? 'text-indigo-400' : 'text-slate-100'}`} title={item.customName || t(item.goalNameKey)}>
+                                    <p className={`font-semibold truncate ${item.promptObject.isAiSuggestion ? 'text-accent-secondary' : 'text-text-primary'}`} title={item.customName || t(item.goalNameKey)}>
                                         {item.customName || t(item.goalNameKey)}
                                     </p>
                                 )}
-                                <p className="text-xs text-slate-400">{new Date(item.timestamp).toLocaleString()}</p>
+                                <p className="text-xs text-text-tertiary flex items-center gap-1.5">
+                                  {new Date(item.timestamp).toLocaleString()}
+                                  {item.chatSessions && item.chatSessions.length > 0 && (
+                                    <span className="flex items-center gap-1 text-accent-primary/80" title={`${item.chatSessions.length} saved chat(s)`}>
+                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z" /><path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h1a2 2 0 002-2V9a2 2 0 00-2-2h-1z" /></svg>
+                                      {item.chatSessions.length}
+                                    </span>
+                                  )}
+                                </p>
                             </div>
                             <div className="flex items-center flex-shrink-0 ml-2">
-                                <button onClick={() => handleRenameClick(item)} className="p-1 text-slate-400 hover:text-white"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
-                                <button onClick={() => toggleExpand(item.id)} className="p-1 text-slate-400 hover:text-white">
+                                <button onClick={() => handleRenameClick(item)} className="p-1 text-text-tertiary hover:text-text-primary"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
+                                <button onClick={() => toggleExpand(item.id)} className="p-1 text-text-tertiary hover:text-text-primary">
                                     <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform ${expandedId === item.id ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                                 </button>
                             </div>
                         </div>
                         {expandedId === item.id && (
-                            <div className="p-3 border-t border-slate-700 bg-black/20">
-                                <pre className="whitespace-pre-wrap text-slate-300 text-xs bg-slate-800 p-2 rounded-md overflow-x-auto mb-3">
+                            <div className="p-3 border-t border-border-primary bg-black/20">
+                                <pre className="whitespace-pre-line font-mono text-text-secondary text-xs bg-bg-secondary p-2 rounded-md overflow-x-auto mb-3">
                                   <code>{buildTextPrompt(item.promptObject, t)}</code>
                                 </pre>
-                                <div className="flex flex-wrap gap-2 justify-end">
-                                    <button onClick={() => onLoad(item)} className="px-2 py-1 text-xs font-semibold text-teal-300 bg-teal-900/50 rounded hover:bg-teal-900/80 transition">{t('buttons.load')}</button>
+                                {item.chatSessions && item.chatSessions.length > 0 && (
+                                    <div className="my-3">
+                                        <h5 className="text-xs font-bold uppercase text-text-tertiary mb-2">{t('history.savedSessionsTitle')}</h5>
+                                        <div className="space-y-2">
+                                            {item.chatSessions.map(session => <SavedChatItem key={session.id} session={session} t={t} />)}
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="flex flex-wrap gap-2 justify-end pt-3 border-t border-border-secondary/50">
+                                    <button onClick={() => onLoad(item)} className="px-2 py-1 text-xs font-semibold text-accent-primary bg-accent-primary/10 rounded hover:bg-accent-primary/20 transition">{t('buttons.load')}</button>
                                     <button onClick={() => handleCopy(item)} className="px-2 py-1 text-xs font-semibold text-cyan-300 bg-cyan-900/50 rounded hover:bg-cyan-900/80 transition">{copiedId === item.id ? t('history.copied') : t('buttons.copy')}</button>
                                     <select
                                         value={item.folderId || 'uncategorized'}
                                         onChange={(e) => onMoveItemToFolder(item.id, e.target.value)}
-                                        className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs font-semibold text-slate-200 focus:ring-1 focus:ring-teal-500"
+                                        className="bg-bg-tertiary border border-border-secondary rounded px-2 py-1 text-xs font-semibold text-text-primary focus:ring-1 focus:ring-accent-primary"
                                     >
                                         <option value="uncategorized">{t('history.uncategorized')}</option>
                                         {folders.map(folder => (
@@ -1653,9 +1793,42 @@ const PromptHistory: React.FC<PromptHistoryProps> = ({ history, categories, onLo
                             </div>
                         )}
                     </div>
-                )) : <p className="text-center text-slate-400 py-4">{t('history.noResults')}</p>}
+                )) : <p className="text-center text-text-tertiary py-4">{t('history.noResults')}</p>}
             </div>
         </section>
+    );
+};
+
+interface SavedChatItemProps {
+    session: ChatSession;
+    t: (key: string) => string;
+}
+const SavedChatItem: React.FC<SavedChatItemProps> = ({ session, t }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+    return (
+        <div className="bg-bg-primary/50 rounded-md border border-border-secondary">
+            <button onClick={() => setIsExpanded(!isExpanded)} className="w-full flex justify-between items-center p-2 text-left">
+                <span className="text-xs font-medium text-text-secondary">{new Date(session.timestamp).toLocaleString()}</span>
+                 <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-text-tertiary transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+            </button>
+            {isExpanded && (
+                <div className="p-2 border-t border-border-secondary max-h-48 overflow-y-auto">
+                    {session.messages.map((msg, index) => (
+                         <div key={index} className={`flex items-start gap-2 my-2 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                            <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${msg.role === 'user' ? 'bg-bg-tertiary text-text-tertiary' : 'bg-accent-secondary/20 text-accent-secondary'}`}>
+                                {msg.role === 'user' 
+                                    ? <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" /></svg>
+                                    : <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" /></svg>
+                                }
+                            </div>
+                             <div className={`p-2 rounded-lg text-xs ${msg.role === 'user' ? 'bg-accent-primary/80 text-white' : 'bg-bg-tertiary text-text-primary'}`}>
+                                <pre className="whitespace-pre-line font-sans">{msg.content}</pre>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
     );
 };
 
@@ -1672,7 +1845,7 @@ interface FolderItemProps {
     onDelete?: () => void;
 }
 const FolderItem: React.FC<FolderItemProps> = ({ name, isActive, onClick, isEditing, editingValue, onEditingChange, onRename, onSaveRename, onDelete }) => (
-    <div className={`group flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors ${isActive ? 'bg-slate-700' : 'hover:bg-slate-800'}`}>
+    <div className={`group flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors ${isActive ? 'bg-bg-tertiary' : 'hover:bg-bg-primary'}`}>
         {isEditing ? (
             <input
                 type="text"
@@ -1680,18 +1853,18 @@ const FolderItem: React.FC<FolderItemProps> = ({ name, isActive, onClick, isEdit
                 onChange={(e) => onEditingChange?.(e.target.value)}
                 onBlur={onSaveRename}
                 onKeyDown={(e) => e.key === 'Enter' && onSaveRename?.()}
-                className="w-full bg-slate-600 border border-slate-500 rounded px-1 py-0 text-sm text-slate-100"
+                className="w-full bg-border-secondary border border-border-primary rounded px-1 py-0 text-sm text-text-primary"
                 autoFocus
             />
         ) : (
-            <button onClick={onClick} className="flex-grow text-left text-sm font-medium text-slate-300 truncate">
+            <button onClick={onClick} className="flex-grow text-left text-sm font-medium text-text-secondary truncate">
                 {name}
             </button>
         )}
         {onRename && onDelete && !isEditing && (
             <div className="hidden group-hover:flex items-center flex-shrink-0 ml-2">
-                <button onClick={onRename} className="p-1 text-slate-400 hover:text-white" title="Rename Folder"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
-                <button onClick={onDelete} className="p-1 text-slate-400 hover:text-red-400" title="Delete Folder"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg></button>
+                <button onClick={onRename} className="p-1 text-text-tertiary hover:text-text-primary" title="Rename Folder"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
+                <button onClick={onDelete} className="p-1 text-text-tertiary hover:text-red-400" title="Delete Folder"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg></button>
             </div>
         )}
     </div>
@@ -1713,29 +1886,29 @@ const AiConfigurationManager: React.FC<AiConfigurationManagerProps> = ({ configs
     return (
         <section>
             <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-bold text-slate-200">{t('settings.title')}</h3>
-                <button onClick={onAdd} className="px-3 py-1 text-sm font-semibold text-teal-300 bg-teal-900/50 rounded hover:bg-teal-900/80 transition">{t('aiConfig.add')}</button>
+                <h3 className="text-xl font-bold text-text-primary">{t('settings.title')}</h3>
+                <button onClick={onAdd} className="px-3 py-1 text-sm font-semibold text-accent-primary bg-accent-primary/10 rounded hover:bg-accent-primary/20 transition">{t('aiConfig.add')}</button>
             </div>
             <div className="space-y-2">
                 {/* Default Option */}
-                <label className={`flex items-center p-3 rounded-md cursor-pointer transition-all border-2 ${activeConfigId === DEFAULT_AI_CONFIG_ID ? 'bg-teal-500/10 border-teal-500' : 'border-slate-700 hover:border-slate-500'}`}>
-                    <input type="radio" name="ai-config" checked={activeConfigId === DEFAULT_AI_CONFIG_ID} onChange={() => onSetActive(DEFAULT_AI_CONFIG_ID)} className="h-4 w-4 text-teal-600 bg-slate-600 border-slate-500 focus:ring-teal-500"/>
+                <label className={`flex items-center p-3 rounded-md cursor-pointer transition-all border-2 ${activeConfigId === DEFAULT_AI_CONFIG_ID ? 'bg-accent-primary/10 border-accent-primary' : 'border-border-primary hover:border-border-secondary'}`}>
+                    <input type="radio" name="ai-config" checked={activeConfigId === DEFAULT_AI_CONFIG_ID} onChange={() => onSetActive(DEFAULT_AI_CONFIG_ID)} className="h-4 w-4 text-accent-primary bg-bg-tertiary border-border-secondary focus:ring-accent-primary"/>
                     <div className="ml-3 text-sm flex-grow">
-                        <p className="font-medium text-slate-100">{t('settings.default')}</p>
-                        <p className="text-xs text-slate-400">{t('settings.defaultDescription')}</p>
+                        <p className="font-medium text-text-primary">{t('settings.default')}</p>
+                        <p className="text-xs text-text-tertiary">{t('settings.defaultDescription')}</p>
                     </div>
                 </label>
                 {/* Custom Configs */}
                 {configs.map(config => (
-                    <label key={config.id} className={`flex items-center p-3 rounded-md cursor-pointer transition-all border-2 ${activeConfigId === config.id ? 'bg-indigo-500/10 border-indigo-500' : 'border-slate-700 hover:border-slate-500'}`}>
-                        <input type="radio" name="ai-config" checked={activeConfigId === config.id} onChange={() => onSetActive(config.id)} className="h-4 w-4 text-indigo-600 bg-slate-600 border-slate-500 focus:ring-indigo-500"/>
+                    <label key={config.id} className={`flex items-center p-3 rounded-md cursor-pointer transition-all border-2 ${activeConfigId === config.id ? 'bg-accent-secondary/10 border-accent-secondary' : 'border-border-primary hover:border-border-secondary'}`}>
+                        <input type="radio" name="ai-config" checked={activeConfigId === config.id} onChange={() => onSetActive(config.id)} className="h-4 w-4 text-accent-secondary bg-bg-tertiary border-border-secondary focus:ring-accent-secondary"/>
                         <div className="ml-3 text-sm flex-grow overflow-hidden">
-                            <p className="font-medium text-slate-100 truncate">{config.name || t('aiConfig.unnamed')}</p>
-                            <p className="text-xs text-slate-400 truncate">{config.modelId}</p>
+                            <p className="font-medium text-text-primary truncate">{config.name || t('aiConfig.unnamed')}</p>
+                            <p className="text-xs text-text-tertiary truncate">{config.modelId}</p>
                         </div>
                         <div className="flex-shrink-0 ml-2">
-                             <button onClick={(e) => {e.preventDefault(); onEdit(config)}} className="p-1 text-slate-400 hover:text-white"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg></button>
-                             <button onClick={(e) => {e.preventDefault(); onDelete(config.id)}} className="p-1 text-slate-400 hover:text-red-400"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg></button>
+                             <button onClick={(e) => {e.preventDefault(); onEdit(config)}} className="p-1 text-text-tertiary hover:text-text-primary"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg></button>
+                             <button onClick={(e) => {e.preventDefault(); onDelete(config.id)}} className="p-1 text-text-tertiary hover:text-red-400"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg></button>
                         </div>
                     </label>
                 ))}
@@ -1822,43 +1995,43 @@ const AiConfigModal: React.FC<AiConfigModalProps> = ({ isOpen, onClose, onSave, 
     const TestStatusMessage = () => {
         if (testStatus === 'testing') return <p className="text-sm text-yellow-400 mt-2">{t('settings.testing')}</p>;
         if (testStatus === 'success') return <p className="text-sm text-green-400 mt-2">{t('settings.testSuccess')}</p>;
-        if (testStatus === 'error') return <p className="text-sm text-red-400 mt-2">{t('settings.testError')} <br/> <span className="text-slate-400 text-xs">{testError}</span></p>;
+        if (testStatus === 'error') return <p className="text-sm text-red-400 mt-2">{t('settings.testError')} <br/> <span className="text-text-tertiary text-xs">{testError}</span></p>;
         return null;
     };
 
     return (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
-            <div className="w-full max-w-lg bg-slate-800 rounded-xl border border-slate-700 shadow-lg" onClick={(e) => e.stopPropagation()}>
-                <div className="p-6 border-b border-slate-700">
-                    <h2 className="text-xl font-bold text-slate-200">{config ? t('aiConfig.editTitle') : t('aiConfig.addTitle')}</h2>
+            <div className="w-full max-w-lg bg-bg-secondary/80 backdrop-blur-sm rounded-xl border border-border-primary shadow-lg" onClick={(e) => e.stopPropagation()}>
+                <div className="p-6 border-b border-border-primary">
+                    <h2 className="text-xl font-bold text-text-primary">{config ? t('aiConfig.editTitle') : t('aiConfig.addTitle')}</h2>
                 </div>
                 <div className="p-6 space-y-4">
                      <div>
-                        <label htmlFor="configName" className="block text-sm font-medium text-slate-300 mb-1">{t('aiConfig.nameLabel')}</label>
-                        <input type="text" id="configName" value={name} onChange={e => setName(e.target.value)} placeholder={t('aiConfig.namePlaceholder')} className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition" />
+                        <label htmlFor="configName" className="block text-sm font-medium text-text-secondary mb-1">{t('aiConfig.nameLabel')}</label>
+                        <input type="text" id="configName" value={name} onChange={e => setName(e.target.value)} placeholder={t('aiConfig.namePlaceholder')} className="w-full bg-bg-tertiary border border-border-secondary rounded-md p-2 text-text-primary focus:ring-2 focus:ring-accent-secondary focus:border-accent-secondary transition" />
                     </div>
                     <div>
-                        <label htmlFor="baseURL" className="block text-sm font-medium text-slate-300 mb-1">{t('settings.customEndpoint')} <span className="text-red-400">*</span></label>
-                        <input type="text" id="baseURL" value={baseURL} onChange={e => setBaseURL(e.target.value)} placeholder={t('settings.customEndpointPlaceholder')} className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition" />
+                        <label htmlFor="baseURL" className="block text-sm font-medium text-text-secondary mb-1">{t('settings.customEndpoint')} <span className="text-red-400">*</span></label>
+                        <input type="text" id="baseURL" value={baseURL} onChange={e => setBaseURL(e.target.value)} placeholder={t('settings.customEndpointPlaceholder')} className="w-full bg-bg-tertiary border border-border-secondary rounded-md p-2 text-text-primary focus:ring-2 focus:ring-accent-secondary focus:border-accent-secondary transition" />
                     </div>
                     <div>
-                        <label htmlFor="apiKey" className="block text-sm font-medium text-slate-300 mb-1">{t('settings.apiKey')}</label>
-                        <input type="password" id="apiKey" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder={t('settings.apiKeyPlaceholder')} className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition" />
+                        <label htmlFor="apiKey" className="block text-sm font-medium text-text-secondary mb-1">{t('settings.apiKey')}</label>
+                        <input type="password" id="apiKey" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder={t('settings.apiKeyPlaceholder')} className="w-full bg-bg-tertiary border border-border-secondary rounded-md p-2 text-text-primary focus:ring-2 focus:ring-accent-secondary focus:border-accent-secondary transition" />
                     </div>
                     <div>
-                        <label htmlFor="modelId" className="block text-sm font-medium text-slate-300 mb-1">{t('settings.modelId')} <span className="text-red-400">*</span></label>
-                        <input type="text" id="modelId" value={modelId} onChange={e => setModelId(e.target.value)} placeholder={t('settings.modelIdPlaceholder')} className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition" />
+                        <label htmlFor="modelId" className="block text-sm font-medium text-text-secondary mb-1">{t('settings.modelId')} <span className="text-red-400">*</span></label>
+                        <input type="text" id="modelId" value={modelId} onChange={e => setModelId(e.target.value)} placeholder={t('settings.modelIdPlaceholder')} className="w-full bg-bg-tertiary border border-border-secondary rounded-md p-2 text-text-primary focus:ring-2 focus:ring-accent-secondary focus:border-accent-secondary transition" />
                     </div>
                     <div>
-                        <button onClick={handleTest} disabled={testStatus==='testing'} className="w-full md:w-auto px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-indigo-600 hover:bg-indigo-500 text-white disabled:bg-slate-600">
+                        <button onClick={handleTest} disabled={testStatus==='testing'} className="w-full md:w-auto px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-accent-secondary hover:bg-accent-secondary-hover text-white disabled:bg-bg-tertiary">
                             {t('settings.testConnection')}
                         </button>
                         <TestStatusMessage />
                     </div>
                 </div>
-                <div className="p-4 bg-slate-800/50 border-t border-slate-700 flex justify-end items-center space-x-3">
-                    <button onClick={onClose} className="px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-slate-600 hover:bg-slate-500 text-white">{t('settings.cancel')}</button>
-                    <button onClick={handleSave} className="px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-teal-600 hover:bg-teal-500 text-white">{t('settings.save')}</button>
+                <div className="p-4 bg-bg-secondary/50 border-t border-border-primary flex justify-end items-center space-x-3">
+                    <button onClick={onClose} className="px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-bg-tertiary hover:bg-border-secondary text-text-primary">{t('settings.cancel')}</button>
+                    <button onClick={handleSave} className="px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-accent-primary hover:bg-accent-primary-hover text-white">{t('settings.save')}</button>
                 </div>
             </div>
         </div>
@@ -1913,14 +2086,14 @@ const ImportPromptModal: React.FC<ImportPromptModalProps> = ({ isOpen, onClose, 
 
     return (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
-            <div className="w-full max-w-2xl bg-slate-800 rounded-xl border border-slate-700 shadow-lg flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
-                <div className="p-6 border-b border-slate-700">
-                    <h2 className="text-xl font-bold text-slate-200">{t('importModal.title')}</h2>
+            <div className="w-full max-w-2xl bg-bg-secondary/80 backdrop-blur-sm rounded-xl border border-border-primary shadow-lg flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+                <div className="p-6 border-b border-border-primary">
+                    <h2 className="text-xl font-bold text-text-primary">{t('importModal.title')}</h2>
                 </div>
                 <div className="p-6 space-y-4 overflow-y-auto">
                     <button 
                         onClick={triggerFileInput}
-                        className="w-full p-6 border-2 border-dashed border-slate-600 rounded-lg text-center text-slate-400 hover:border-teal-500 hover:text-teal-400 transition-colors"
+                        className="w-full p-6 border-2 border-dashed border-border-secondary rounded-lg text-center text-text-tertiary hover:border-accent-primary hover:text-accent-primary transition-colors"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
                         <p className="mt-2 font-semibold">{fileName || t('importModal.fileLabel')}</p>
@@ -1938,15 +2111,15 @@ const ImportPromptModal: React.FC<ImportPromptModalProps> = ({ isOpen, onClose, 
                         onChange={(e) => setPromptContent(e.target.value)}
                         rows={10}
                         placeholder={t('importModal.pastePlaceholder')}
-                        className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-slate-100 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition"
+                        className="w-full bg-bg-tertiary border border-border-secondary rounded-md p-2 text-text-primary focus:ring-2 focus:ring-accent-primary focus:border-accent-primary transition"
                     />
                 </div>
-                <div className="p-4 bg-slate-800/50 border-t border-slate-700 flex justify-end items-center space-x-3">
-                    <button onClick={onClose} className="px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-slate-600 hover:bg-slate-500 text-white">{t('settings.cancel')}</button>
+                <div className="p-4 bg-bg-secondary/50 border-t border-border-primary flex justify-end items-center space-x-3">
+                    <button onClick={onClose} className="px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-bg-tertiary hover:bg-border-secondary text-text-primary">{t('settings.cancel')}</button>
                     <button 
                         onClick={() => onImprove(promptContent)} 
                         disabled={!promptContent.trim() || isImproving}
-                        className="px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-indigo-600 hover:bg-indigo-500 text-white disabled:bg-slate-600 disabled:cursor-not-allowed flex items-center gap-2"
+                        className="px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-accent-secondary hover:bg-accent-secondary-hover text-white disabled:bg-bg-tertiary disabled:cursor-not-allowed flex items-center gap-2"
                     >
                          {isImproving ? (
                             <>
@@ -1958,6 +2131,353 @@ const ImportPromptModal: React.FC<ImportPromptModalProps> = ({ isOpen, onClose, 
                         )}
                     </button>
                 </div>
+            </div>
+        </div>
+    );
+};
+
+
+// ################# CHAT MODAL #################
+interface ChatModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    systemPrompt: string;
+    activeAiConfigId: string;
+    aiConfigs: AiConfig[];
+    onSaveChat: (messages: ChatMessage[]) => void;
+    t: (key: string) => string;
+}
+
+// Markdown Renderer
+const parseMarkdownToHtml = (markdown: string): string => {
+    const escapeHtml = (unsafe: string) => unsafe.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c] || c);
+    
+    const processInline = (line: string) => {
+        return line
+            .replace(/\*\*([^\s].*?[^\s])\*\*/g, '<strong>$1</strong>')
+            .replace(/__([^\s].*?[^\s])__/g, '<strong>$1</strong>')
+            .replace(/\*([^\s].*?[^\s])\*/g, '<em>$1</em>')
+            .replace(/_([^\s].*?[^\s])_/g, '<em>$1</em>')
+            .replace(/`([^`]+)`/g, '<code>$1</code>');
+    };
+
+    const lines = markdown.split('\n');
+    let html = '';
+    let inCodeBlock = false;
+    let inList: 'ul' | 'ol' | null = null;
+    let codeContent = '';
+    let codeLang = '';
+
+    for (const line of lines) {
+        if (line.startsWith('```')) {
+            if (inCodeBlock) {
+                html += `<pre><code class="language-${codeLang}">${escapeHtml(codeContent.trim())}</code></pre>`;
+                inCodeBlock = false;
+                codeContent = '';
+                codeLang = '';
+            } else {
+                if (inList) {
+                    html += `</${inList}>\n`;
+                    inList = null;
+                }
+                inCodeBlock = true;
+                codeLang = line.substring(3).trim();
+            }
+            continue;
+        }
+        if (inCodeBlock) {
+            codeContent += line + '\n';
+            continue;
+        }
+
+        const ulMatch = line.match(/^\s*[-*]\s+(.*)/);
+        const olMatch = !ulMatch && line.match(/^\s*(\d+)\.\s+(.*)/);
+
+        if (!ulMatch && !olMatch && inList) {
+            html += `</${inList}>\n`;
+            inList = null;
+        }
+        
+        if (ulMatch) {
+            if (inList !== 'ul') {
+                if (inList) html += `</${inList}>\n`;
+                html += '<ul>\n';
+                inList = 'ul';
+            }
+            html += `  <li>${processInline(ulMatch[1])}</li>\n`;
+        } else if (olMatch) {
+             if (inList !== 'ol') {
+                if (inList) html += `</${inList}>\n`;
+                html += '<ol>\n';
+                inList = 'ol';
+            }
+            html += `  <li>${processInline(olMatch[2])}</li>\n`;
+        } else if (line.trim()) {
+             html += `<p>${processInline(line)}</p>\n`;
+        }
+    }
+
+    if (inCodeBlock) html += `<pre><code class="language-${codeLang}">${escapeHtml(codeContent.trim())}</code></pre>\n`;
+    if (inList) html += `</${inList}>\n`;
+
+    return html.trim();
+};
+
+const MarkdownRenderer: React.FC<{ content: string; isStreaming?: boolean }> = ({ content, isStreaming = false }) => {
+    const htmlContent = parseMarkdownToHtml(content);
+    const finalHtml = isStreaming ? `${htmlContent}<span class="inline-block w-2 h-4 bg-text-primary ml-1 animate-pulse"></span>` : htmlContent;
+    
+    return (
+        <div 
+            className="prose-styles text-sm"
+            dangerouslySetInnerHTML={{ __html: finalHtml }} 
+        />
+    );
+};
+
+const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, systemPrompt, activeAiConfigId, aiConfigs, onSaveChat, t }) => {
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [input, setInput] = useState('');
+    const [isSending, setIsSending] = useState(false);
+    const [isSystemPromptCollapsed, setSystemPromptCollapsed] = useState(false);
+    const chatContainerRef = useRef<HTMLDivElement>(null);
+    const geminiChatInstance = useRef<Chat | null>(null);
+    const controllerRef = useRef<AbortController | null>(null);
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
+
+    // Reset state when modal opens
+    useEffect(() => {
+        if (isOpen) {
+            setMessages([]);
+            setInput('');
+            setIsSending(false);
+            setSaveStatus('idle');
+            geminiChatInstance.current = null;
+        }
+    }, [isOpen]);
+
+    // Auto-scroll to bottom
+    useEffect(() => {
+        if (chatContainerRef.current) {
+            chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+        }
+    }, [messages]);
+
+    const handleClearChat = () => {
+        if (window.confirm(t('chatModal.clearChatConfirm'))) {
+            setMessages([]);
+            geminiChatInstance.current = null; // Reset Gemini chat history
+        }
+    };
+    
+    const handleSaveSession = () => {
+        if (messages.length > 0) {
+            onSaveChat(messages);
+            setSaveStatus('saved');
+            setTimeout(() => setSaveStatus('idle'), 2000);
+        }
+    };
+
+    const handleSendMessage = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!input.trim() || isSending) return;
+
+        const newUserMessage: ChatMessage = { role: 'user', content: input };
+        setMessages(prev => [...prev, newUserMessage, { role: 'model', content: '' }]);
+        setInput('');
+        setIsSending(true);
+        controllerRef.current = new AbortController();
+
+        try {
+            if (activeAiConfigId === DEFAULT_AI_CONFIG_ID) {
+                await handleGeminiStream(input, systemPrompt);
+            } else {
+                const activeConfig = aiConfigs.find(c => c.id === activeAiConfigId);
+                if (!activeConfig) throw new Error(t('settings.customConfigMissing'));
+                await handleOpenAiStream(input, systemPrompt, activeConfig);
+            }
+        } catch (error: any) {
+            if (error.name === 'AbortError') {
+                console.log("Chat request aborted.");
+                 setMessages(prev => [...prev.slice(0, -1), { role: 'model', content: 'Request cancelled.' }]);
+            } else {
+                console.error("Chat error:", error);
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                setMessages(prev => [...prev.slice(0, -1), { role: 'model', content: `Error: ${errorMessage}` }]);
+            }
+        } finally {
+            setIsSending(false);
+            controllerRef.current = null;
+        }
+    };
+
+    const handleGeminiStream = async (message: string, systemInstruction: string) => {
+        const apiKey = process.env.API_KEY as string;
+        const ai = new GoogleGenAI({ apiKey });
+
+        if (!geminiChatInstance.current) {
+            geminiChatInstance.current = ai.chats.create({
+                model: 'gemini-2.5-flash',
+                config: { systemInstruction },
+            });
+        }
+        
+        const result = await geminiChatInstance.current.sendMessageStream({ message });
+        
+        for await (const chunk of result) {
+            if (controllerRef.current?.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+            const chunkText = chunk.text;
+            setMessages(prev => {
+                const lastMessage = prev[prev.length - 1];
+                if (lastMessage.role === 'model') {
+                    return [...prev.slice(0, -1), { ...lastMessage, content: lastMessage.content + chunkText }];
+                }
+                return prev;
+            });
+        }
+    };
+    
+    const handleOpenAiStream = async (message: string, systemInstruction: string, config: AiConfig) => {
+        const endpoint = `${config.baseURL.replace(/\/$/, '')}/chat/completions`;
+        const headers: HeadersInit = { 'Content-Type': 'application/json' };
+        if (config.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`;
+
+        const body = JSON.stringify({
+            model: config.modelId,
+            messages: [
+                { role: 'system', content: systemInstruction },
+                ...messages.filter(m => m.role === 'user' || (m.role === 'model' && m.content.trim() !== '')).slice(0,-1), // History
+                { role: 'user', content: message } // Current message
+            ],
+            stream: true,
+        });
+
+        const response = await fetch(endpoint, { method: 'POST', headers, body, signal: controllerRef.current?.signal });
+
+        if (!response.ok || !response.body) {
+            const errorBody = await response.text();
+            throw new Error(`API Error ${response.status}: ${errorBody}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    const data = line.substring(6);
+                    if (data.trim() === '[DONE]') return;
+                    try {
+                        const json = JSON.parse(data);
+                        const content = json.choices[0]?.delta?.content || '';
+                        if (content) {
+                            setMessages(prev => {
+                                const lastMessage = prev[prev.length - 1];
+                                if (lastMessage.role === 'model') {
+                                    return [...prev.slice(0, -1), { ...lastMessage, content: lastMessage.content + content }];
+                                }
+                                return prev;
+                            });
+                        }
+                    } catch (e) {
+                        console.error("Error parsing stream chunk:", data);
+                    }
+                }
+            }
+        }
+    };
+    
+    const handleStop = () => {
+        if (controllerRef.current) {
+            controllerRef.current.abort();
+        }
+        setIsSending(false);
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-bg-primary/90 z-50 flex flex-col p-2 sm:p-4 md:p-8" onClick={onClose}>
+            <div className="w-full h-full max-w-4xl mx-auto bg-bg-secondary/80 backdrop-blur-sm rounded-xl border border-border-primary shadow-lg flex flex-col" onClick={(e) => e.stopPropagation()}>
+                <header className="flex-shrink-0 flex items-center justify-between p-4 border-b border-border-primary">
+                    <h2 className="text-xl font-bold text-text-primary flex items-center gap-3">
+                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-accent-primary" viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z" /><path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h1a2 2 0 002-2V9a2 2 0 00-2-2h-1z" /></svg>
+                        {t('chatModal.title')}
+                    </h2>
+                    <div className="flex items-center gap-2">
+                         <button onClick={handleSaveSession} disabled={messages.length === 0 || saveStatus === 'saved'} className="px-3 py-1.5 text-xs font-semibold rounded-md transition-colors bg-bg-tertiary hover:bg-border-secondary text-text-secondary disabled:opacity-50 disabled:cursor-not-allowed">
+                           {saveStatus === 'saved' ? t('chatModal.saved') : t('chatModal.saveSession')}
+                        </button>
+                         <button onClick={handleClearChat} className="p-2 rounded-md text-text-tertiary hover:bg-bg-tertiary hover:text-red-400 transition-colors" title={t('chatModal.clearChat')}>
+                           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg>
+                        </button>
+                        <button onClick={onClose} className="p-2 rounded-md text-text-tertiary hover:bg-bg-tertiary transition-colors" title={t('chatModal.close')}>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+                </header>
+
+                <div className="p-4 border-b border-border-primary flex-shrink-0">
+                    <button onClick={() => setSystemPromptCollapsed(p => !p)} className="w-full flex justify-between items-center text-left">
+                        <span className="text-sm font-semibold text-text-tertiary">{t('chatModal.systemPrompt')}</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 text-text-tertiary transition-transform ${!isSystemPromptCollapsed && 'rotate-180'}`} viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                    </button>
+                    {!isSystemPromptCollapsed && (
+                         <pre className="mt-2 text-xs font-mono text-text-secondary bg-bg-primary/50 p-3 rounded-md max-h-32 overflow-y-auto"><code>{systemPrompt}</code></pre>
+                    )}
+                </div>
+
+                <div ref={chatContainerRef} className="flex-grow p-4 overflow-y-auto space-y-4">
+                    {messages.map((msg, index) => (
+                        <div key={index} className={`flex items-start gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                           {msg.role === 'model' && <div className="flex-shrink-0 w-8 h-8 rounded-full bg-accent-secondary/20 text-accent-secondary flex items-center justify-center"><AiSuggestionIcon /></div>}
+                            <div className={`max-w-xl p-3 rounded-xl ${msg.role === 'user' ? 'bg-accent-primary text-white rounded-br-none' : 'bg-bg-tertiary text-text-primary rounded-bl-none'}`}>
+                                {msg.role === 'user' ? (
+                                    <pre className="whitespace-pre-line font-sans text-sm">{msg.content}</pre>
+                                ) : (
+                                    <MarkdownRenderer 
+                                        content={msg.content} 
+                                        isStreaming={isSending && msg.role === 'model' && index === messages.length - 1} 
+                                    />
+                                )}
+                            </div>
+                           {msg.role === 'user' && <div className="flex-shrink-0 w-8 h-8 rounded-full bg-bg-tertiary text-text-tertiary flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" /></svg></div>}
+                        </div>
+                    ))}
+                </div>
+
+                <form onSubmit={handleSendMessage} className="flex-shrink-0 p-4 border-t border-border-primary bg-bg-secondary/50">
+                    <div className="relative">
+                        <textarea
+                            value={input}
+                            onChange={e => setInput(e.target.value)}
+                            onKeyDown={e => { if(e.key === 'Enter' && !e.shiftKey) handleSendMessage(e); }}
+                            placeholder={t('chatModal.placeholder')}
+                            rows={1}
+                            disabled={isSending}
+                            className="w-full bg-bg-tertiary border border-border-secondary rounded-lg p-3 pr-24 text-text-primary focus:ring-2 focus:ring-accent-primary transition resize-none"
+                        />
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
+                         {isSending ? (
+                             <button type="button" onClick={handleStop} className="p-2 rounded-md text-text-tertiary hover:text-red-400 hover:bg-red-500/10" title="Stop">
+                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1zm4 0a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+                             </button>
+                         ) : (
+                            <button type="submit" className="p-2 rounded-md text-text-tertiary hover:text-accent-primary disabled:opacity-50" disabled={!input.trim()}>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor"><path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" /></svg>
+                            </button>
+                         )}
+                        </div>
+                    </div>
+                </form>
             </div>
         </div>
     );

@@ -51,6 +51,19 @@ export interface PromptObject {
   };
 }
 
+// Added for prompt testing chat
+export interface ChatMessage {
+  role: 'user' | 'model';
+  content: string;
+}
+
+// Added for saving chat test sessions
+export interface ChatSession {
+    id: string;
+    timestamp: number;
+    messages: ChatMessage[];
+}
+
 // Added for prompt history
 export interface HistoryItem {
   id: string;
@@ -59,6 +72,7 @@ export interface HistoryItem {
   customName?: string; // Allow user to rename history items
   folderId?: string; // Added for folder categorization
   promptObject: PromptObject;
+  chatSessions?: ChatSession[]; // Store saved chat sessions
   // Store the state required to reload the prompt.
   // For imported prompts, this state might be minimal.
   generatorState: {

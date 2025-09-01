@@ -6,6 +6,11 @@ export const translations = {
       title: 'PromptCraft',
       subtitle: 'Your Personal AI Prompt Architect',
     },
+    theme: {
+        title: 'Theme',
+        slate: 'Slate',
+        midnight: 'Midnight',
+    },
     steps: {
       step1: 'Step 1: Choose Your Domain',
       step2: 'Step 2: Define Your Goal',
@@ -96,8 +101,10 @@ export const translations = {
         load: 'Load',
         delete: 'Delete',
         clearAll: 'Clear All',
+        clearAllConfirm: 'Are you sure you want to delete all prompt history?',
         aiAssist: 'AI Assist',
         aiGenerating: 'Generating...',
+        testInChat: 'Test in Chat',
     },
     output: {
         title: 'Your Generated Prompt',
@@ -139,6 +146,7 @@ export const translations = {
         importedPrompt: 'Imported Prompt',
         importedPromptRole: 'This is an imported prompt.',
         fromImport: 'from import',
+        savedSessionsTitle: 'Saved Chat Sessions',
     },
     importModal: {
         title: 'Import Prompt for Improvement',
@@ -146,6 +154,18 @@ export const translations = {
         fileTypes: 'Supported types: .txt, .md, .json, .xml, .yaml',
         pastePlaceholder: 'Or paste your prompt content here...',
         improveButton: 'Improve This Prompt',
+    },
+    chatModal: {
+      title: 'Test Your Prompt',
+      close: 'Close',
+      systemPrompt: 'System Prompt (Instructions for AI)',
+      placeholder: 'Type your message...',
+      send: 'Send',
+      clearChat: 'Clear Chat',
+      clearChatConfirm: 'Are you sure you want to clear this conversation?',
+      saveSession: 'Save Session',
+      saved: 'Saved!',
+      thinking: 'AI is thinking...',
     },
     settings: {
       title: 'AI Configurations',
@@ -177,7 +197,11 @@ export const translations = {
         title: 'Tools & History',
         toggle: 'Toggle Sidebar',
         historyTab: 'History',
-        settingsTab: 'Settings'
+        settingsTab: 'Settings',
+        controlsTitle: 'Display & Language',
+        language: 'Language',
+        languageEnglish: 'English',
+        languageVietnamese: 'Tiếng Việt',
     },
     errors: {
         improveFailed: 'Sorry, there was an error improving the prompt:',
@@ -198,6 +222,11 @@ export const translations = {
     app: {
       title: 'PromptCraft',
       subtitle: 'Kiến Trúc Sư Prompt AI Cá Nhân Của Bạn',
+    },
+    theme: {
+        title: 'Giao diện',
+        slate: 'Ban đêm',
+        midnight: 'Nửa đêm',
     },
     steps: {
       step1: 'Bước 1: Chọn Lĩnh Vực',
@@ -289,8 +318,10 @@ export const translations = {
         load: 'Tải',
         delete: 'Xóa',
         clearAll: 'Xóa tất cả',
+        clearAllConfirm: 'Bạn có chắc chắn muốn xóa toàn bộ lịch sử prompt không?',
         aiAssist: 'Hỗ trợ AI',
         aiGenerating: 'Đang tạo...',
+        testInChat: 'Thử nghiệm trong Chat',
     },
     output: {
         title: 'Prompt đã tạo của bạn',
@@ -332,6 +363,7 @@ export const translations = {
         importedPrompt: 'Prompt đã Nhập',
         importedPromptRole: 'Đây là một prompt được nhập từ tệp.',
         fromImport: 'từ tệp nhập',
+        savedSessionsTitle: 'Phiên Chat đã lưu',
     },
     importModal: {
         title: 'Nhập Prompt để Cải thiện',
@@ -339,6 +371,18 @@ export const translations = {
         fileTypes: 'Loại tệp được hỗ trợ: .txt, .md, .json, .xml, .yaml',
         pastePlaceholder: 'Hoặc dán nội dung prompt của bạn vào đây...',
         improveButton: 'Cải thiện Prompt này',
+    },
+    chatModal: {
+      title: 'Kiểm tra Prompt của bạn',
+      close: 'Đóng',
+      systemPrompt: 'Prompt Hệ thống (Hướng dẫn cho AI)',
+      placeholder: 'Nhập tin nhắn của bạn...',
+      send: 'Gửi',
+      clearChat: 'Xóa cuộc trò chuyện',
+      clearChatConfirm: 'Bạn có chắc chắn muốn xóa cuộc trò chuyện này không?',
+      saveSession: 'Lưu phiên',
+      saved: 'Đã lưu!',
+      thinking: 'AI đang suy nghĩ...',
     },
     settings: {
       title: 'Cấu hình AI',
@@ -370,7 +414,11 @@ export const translations = {
         title: 'Công cụ & Lịch sử',
         toggle: 'Bật/tắt Sidebar',
         historyTab: 'Lịch sử',
-        settingsTab: 'Cài đặt'
+        settingsTab: 'Cài đặt',
+        controlsTitle: 'Hiển thị & Ngôn ngữ',
+        language: 'Ngôn ngữ',
+        languageEnglish: 'English',
+        languageVietnamese: 'Tiếng Việt',
     },
     errors: {
         improveFailed: 'Rất tiếc, đã có lỗi khi cải thiện prompt:',
