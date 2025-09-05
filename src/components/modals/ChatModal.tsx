@@ -4,6 +4,8 @@ import type { ChatMessage, AiConfig } from '../../types';
 import { AiSuggestionIcon } from '../common/Icons';
 import { DEFAULT_AI_CONFIG_ID } from '../../constants';
 
+declare var hljs: any;
+
 // Markdown Renderer
 const parseMarkdownToHtml = (markdown: string): string => {
     const escapeHtml = (unsafe: string) => unsafe.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c] || c);
@@ -80,11 +82,22 @@ const parseMarkdownToHtml = (markdown: string): string => {
 };
 
 const MarkdownRenderer: React.FC<{ content: string; isStreaming?: boolean }> = ({ content, isStreaming = false }) => {
+    const containerRef = useRef<HTMLDivElement>(null);
     const htmlContent = parseMarkdownToHtml(content);
     const finalHtml = isStreaming ? `${htmlContent}<span class="inline-block w-2 h-4 bg-text-primary ml-1 animate-pulse"></span>` : htmlContent;
 
+    useEffect(() => {
+        if (containerRef.current && typeof hljs !== 'undefined') {
+            const codeBlocks = containerRef.current.querySelectorAll('pre code');
+            codeBlocks.forEach((block) => {
+                hljs.highlightElement(block as HTMLElement);
+            });
+        }
+    }, [content]);
+
     return (
         <div
+            ref={containerRef}
             className="prose-styles text-sm"
             dangerouslySetInnerHTML={{ __html: finalHtml }}
         />
@@ -98,11 +111,12 @@ interface ChatModalProps {
     activeAiConfigId: string;
     aiConfigs: AiConfig[];
     onSaveChat: (messages: ChatMessage[]) => void;
+    messages: ChatMessage[];
+    setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
     t: (key: string) => string;
 }
 
-export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, systemPrompt, activeAiConfigId, aiConfigs, onSaveChat, t }) => {
-    const [messages, setMessages] = useState<ChatMessage[]>([]);
+export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, systemPrompt, activeAiConfigId, aiConfigs, onSaveChat, t, messages, setMessages }) => {
     const [input, setInput] = useState('');
     const [isSending, setIsSending] = useState(false);
     const [isSystemPromptCollapsed, setSystemPromptCollapsed] = useState(false);
@@ -111,14 +125,19 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, systemPro
     const controllerRef = useRef<AbortController | null>(null);
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
 
+    useEffect(() => {
+        // When messages are cleared (new chat starts), reset the gemini instance.
+        if (messages.length === 0) {
+            geminiChatInstance.current = null;
+        }
+    }, [messages]);
+
     // Reset state when modal opens
     useEffect(() => {
         if (isOpen) {
-            setMessages([]);
             setInput('');
             setIsSending(false);
             setSaveStatus('idle');
-            geminiChatInstance.current = null;
         }
     }, [isOpen]);
 
@@ -127,12 +146,11 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, systemPro
         if (chatContainerRef.current) {
             chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
         }
-    }, [messages]);
+    }, [messages, isSending]);
 
     const handleClearChat = () => {
         if (window.confirm(t('chatModal.clearChatConfirm'))) {
             setMessages([]);
-            geminiChatInstance.current = null; // Reset Gemini chat history
         }
     };
 
@@ -141,39 +159,6 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, systemPro
             onSaveChat(messages);
             setSaveStatus('saved');
             setTimeout(() => setSaveStatus('idle'), 2000);
-        }
-    };
-
-    const handleSendMessage = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!input.trim() || isSending) return;
-
-        const newUserMessage: ChatMessage = { role: 'user', content: input };
-        setMessages(prev => [...prev, newUserMessage, { role: 'model', content: '' }]);
-        setInput('');
-        setIsSending(true);
-        controllerRef.current = new AbortController();
-
-        try {
-            if (activeAiConfigId === DEFAULT_AI_CONFIG_ID) {
-                await handleGeminiStream(input, systemPrompt);
-            } else {
-                const activeConfig = aiConfigs.find(c => c.id === activeAiConfigId);
-                if (!activeConfig) throw new Error(t('settings.customConfigMissing'));
-                await handleOpenAiStream(input, systemPrompt, activeConfig);
-            }
-        } catch (error: any) {
-            if (error.name === 'AbortError') {
-                console.log("Chat request aborted.");
-                 setMessages(prev => [...prev.slice(0, -1), { role: 'model', content: 'Request cancelled.' }]);
-            } else {
-                console.error("Chat error:", error);
-                const errorMessage = error instanceof Error ? error.message : String(error);
-                setMessages(prev => [...prev.slice(0, -1), { role: 'model', content: `Error: ${errorMessage}` }]);
-            }
-        } finally {
-            setIsSending(false);
-            controllerRef.current = null;
         }
     };
 
@@ -203,7 +188,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, systemPro
         }
     };
 
-    const handleOpenAiStream = async (message: string, systemInstruction: string, config: AiConfig) => {
+    const handleOpenAiStream = async (message: string, systemInstruction: string, config: AiConfig, history: ChatMessage[]) => {
         const endpoint = `${config.baseURL.replace(/\/$/, '')}/chat/completions`;
         const headers: HeadersInit = { 'Content-Type': 'application/json' };
         if (config.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`;
@@ -212,8 +197,8 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, systemPro
             model: config.modelId,
             messages: [
                 { role: 'system', content: systemInstruction },
-                ...messages.filter(m => m.role === 'user' || (m.role === 'model' && m.content.trim() !== '')).slice(0,-1), // History
-                { role: 'user', content: message } // Current message
+                ...history,
+                { role: 'user', content: message }
             ],
             stream: true,
         });
@@ -258,6 +243,65 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, systemPro
                     }
                 }
             }
+        }
+    };
+    
+    const submitMessage = async () => {
+        const messageContent = input.trim();
+        if (!messageContent || isSending) return;
+
+        const newUserMessage: ChatMessage = { role: 'user', content: messageContent };
+        const historyForApi = messages.filter(m => m.role === 'user' || (m.role === 'model' && m.content.trim() !== ''));
+
+        setMessages(prev => [...prev, newUserMessage, { role: 'model', content: '' }]);
+        setInput('');
+        setIsSending(true);
+        controllerRef.current = new AbortController();
+
+        try {
+            if (activeAiConfigId === DEFAULT_AI_CONFIG_ID) {
+                await handleGeminiStream(messageContent, systemPrompt);
+            } else {
+                const activeConfig = aiConfigs.find(c => c.id === activeAiConfigId);
+                if (!activeConfig) throw new Error(t('settings.customConfigMissing'));
+                await handleOpenAiStream(messageContent, systemPrompt, activeConfig, historyForApi);
+            }
+        } catch (error: any) {
+            if (error.name === 'AbortError') {
+                console.log("Chat request aborted.");
+                 setMessages(prev => {
+                    const lastMessage = prev[prev.length - 1];
+                    if (lastMessage?.role === 'model' && lastMessage.content === '') {
+                        return [...prev.slice(0, -1), { role: 'model', content: 'Request cancelled.' }];
+                    }
+                    return prev;
+                 });
+            } else {
+                console.error("Chat error:", error);
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                setMessages(prev => {
+                     const lastMessage = prev[prev.length - 1];
+                     if (lastMessage?.role === 'model') {
+                        return [...prev.slice(0, -1), { role: 'model', content: `Error: ${errorMessage}` }];
+                     }
+                     return prev;
+                });
+            }
+        } finally {
+            setIsSending(false);
+            controllerRef.current = null;
+        }
+    };
+
+    const handleFormSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        submitMessage();
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            submitMessage();
         }
     };
 
@@ -320,12 +364,12 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, systemPro
                     ))}
                 </div>
 
-                <form onSubmit={handleSendMessage} className="flex-shrink-0 p-4 border-t border-border-primary bg-bg-secondary/50">
+                <form onSubmit={handleFormSubmit} className="flex-shrink-0 p-4 border-t border-border-primary bg-bg-secondary/50">
                     <div className="relative">
                         <textarea
                             value={input}
                             onChange={e => setInput(e.target.value)}
-                            onKeyDown={e => { if(e.key === 'Enter' && !e.shiftKey) handleSendMessage(e); }}
+                            onKeyDown={handleKeyDown}
                             placeholder={t('chatModal.placeholder')}
                             rows={1}
                             disabled={isSending}

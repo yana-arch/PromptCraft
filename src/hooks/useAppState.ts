@@ -39,6 +39,7 @@ export const useAppState = () => {
     const [isChatModalOpen, setIsChatModalOpen] = useState(false);
     const [chatSystemPrompt, setChatSystemPrompt] = useState('');
     const [testingHistoryItemId, setTestingHistoryItemId] = useState<string | null>(null);
+    const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
 
     // Reset technique-specific state when technique changes
     useEffect(() => {
@@ -274,6 +275,9 @@ export const useAppState = () => {
 
     // Chat Test Handlers
     const handleOpenChatTest = (historyId: string, promptText: string) => {
+        if (testingHistoryItemId !== historyId) {
+            setChatMessages([]);
+        }
         setChatSystemPrompt(promptText);
         setTestingHistoryItemId(historyId);
         setIsChatModalOpen(true);
@@ -321,6 +325,7 @@ export const useAppState = () => {
             editingAiConfig,
             isChatModalOpen,
             chatSystemPrompt,
+            chatMessages,
         } as AppState,
         t,
         actions: {
@@ -347,6 +352,7 @@ export const useAppState = () => {
             setEditingAiConfig,
             setIsChatModalOpen,
             setChatSystemPrompt,
+            setChatMessages,
             handleCategorySelect,
             handleGoalSelect,
             handleFormChange,

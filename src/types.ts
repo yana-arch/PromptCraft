@@ -121,4 +121,5 @@ export interface AppState {
     editingAiConfig: AiConfig | null;
     isChatModalOpen: boolean;
     chatSystemPrompt: string;
+    chatMessages: ChatMessage[];
 }

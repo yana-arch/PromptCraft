@@ -1,4 +1,3 @@
-// FIX: Import React to bring the React namespace into scope for type definitions.
 import React, { useState } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { extractJsonFromString } from '../lib/utils';
@@ -77,10 +76,12 @@ Based on the target and context, generate a clear, structured, and actionable li
                     throw new Error(`${t('errors.apiError')} ${response.status}: ${errorBody}`);
                 }
                 const data = await response.json();
-                generatedTasks = data.choices[0]?.message?.content;
-                if (!generatedTasks) {
+                const content = data.choices[0]?.message?.content;
+                
+                if (typeof content !== 'string' || !content.trim()) {
                     throw new Error(t('errors.noSuggestion'));
                 }
+                generatedTasks = content;
             }
 
             setFormData(prev => ({
