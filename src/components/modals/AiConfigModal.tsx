@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { AiConfig } from '../../types';
+import { PREDEFINED_BASE_URLS } from '../../constants';
 
 interface AiConfigModalProps {
     isOpen: boolean;
@@ -11,16 +12,34 @@ interface AiConfigModalProps {
 
 export const AiConfigModal: React.FC<AiConfigModalProps> = ({ isOpen, onClose, onSave, config, t }) => {
     const [name, setName] = useState('');
-    const [baseURL, setBaseURL] = useState('');
+    const [selectedProvider, setSelectedProvider] = useState('custom');
+    const [customBaseURL, setCustomBaseURL] = useState('');
     const [apiKey, setApiKey] = useState('');
     const [modelId, setModelId] = useState('');
+
+    // Computed baseURL based on selected provider
+    const baseURL = selectedProvider === 'custom' ? customBaseURL : PREDEFINED_BASE_URLS.find(p => p.id === selectedProvider)?.url || '';
 
     useEffect(() => {
         if (isOpen) {
             setName(config?.name || '');
-            setBaseURL(config?.baseURL || '');
             setApiKey(config?.apiKey || '');
             setModelId(config?.modelId || '');
+
+            // Initialize provider selection based on baseURL
+            if (config?.baseURL) {
+                const provider = PREDEFINED_BASE_URLS.find(p => p.url === config.baseURL);
+                if (provider) {
+                    setSelectedProvider(provider.id);
+                    setCustomBaseURL('');
+                } else {
+                    setSelectedProvider('custom');
+                    setCustomBaseURL(config.baseURL);
+                }
+            } else {
+                setSelectedProvider('custom');
+                setCustomBaseURL('');
+            }
         }
     }, [isOpen, config]);
 
@@ -39,7 +58,9 @@ export const AiConfigModal: React.FC<AiConfigModalProps> = ({ isOpen, onClose, o
         onSave(newConfig);
     };
 
-    const isFormValid = name.trim() && baseURL.trim() && modelId.trim();
+    const isFormValid = name.trim() && modelId.trim() && (
+        selectedProvider === 'custom' ? customBaseURL.trim() : true
+    );
 
     return (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -71,16 +92,40 @@ export const AiConfigModal: React.FC<AiConfigModalProps> = ({ isOpen, onClose, o
                         />
                     </div>
                     <div>
-                        <label htmlFor="config-baseurl" className="block text-sm font-medium text-text-secondary mb-1">{t('aiConfig.baseURL')}</label>
-                        <input
-                            id="config-baseurl"
-                            type="text"
-                            value={baseURL}
-                            onChange={(e) => setBaseURL(e.target.value)}
-                            placeholder={t('aiConfig.baseURLPlaceholder')}
+                        <label htmlFor="config-provider" className="block text-sm font-medium text-text-secondary mb-1">{t('aiConfig.baseURLSelect')}</label>
+                        <select
+                            id="config-provider"
+                            value={selectedProvider}
+                            onChange={(e) => setSelectedProvider(e.target.value)}
                             className="w-full bg-bg-tertiary border border-border-secondary rounded-md p-2 text-text-primary focus:ring-2 focus:ring-accent-primary focus:border-accent-primary transition"
-                        />
+                        >
+                            {PREDEFINED_BASE_URLS.map((provider) => (
+                                <option key={provider.id} value={provider.id}>
+                                    {t(`aiConfig.providers.${provider.id}`)}
+                                </option>
+                            ))}
+                        </select>
                     </div>
+                    {selectedProvider === 'custom' && (
+                        <div>
+                            <label htmlFor="config-custom-baseurl" className="block text-sm font-medium text-text-secondary mb-1">{t('aiConfig.baseURLCustom')}</label>
+                            <input
+                                id="config-custom-baseurl"
+                                type="text"
+                                value={customBaseURL}
+                                onChange={(e) => setCustomBaseURL(e.target.value)}
+                                placeholder={t('aiConfig.baseURLPlaceholder')}
+                                className="w-full bg-bg-tertiary border border-border-secondary rounded-md p-2 text-text-primary focus:ring-2 focus:ring-accent-primary focus:border-accent-primary transition"
+                            />
+                        </div>
+                    )}
+                    {selectedProvider === 'azure-openai' && (
+                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
+                            <p className="text-sm text-amber-800">
+                                <strong>Note:</strong> For Azure OpenAI, replace "your-resource-name" in the URL with your actual Azure resource name.
+                            </p>
+                        </div>
+                    )}
                      <div>
                         <label htmlFor="config-apikey" className="block text-sm font-medium text-text-secondary mb-1">{t('aiConfig.apiKey')}</label>
                         <input

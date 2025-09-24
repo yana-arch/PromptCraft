@@ -141,3 +141,14 @@ export const CUSTOM_GOAL_FIELDS: InputField[] = [
 ];
 
 export const DEFAULT_AI_CONFIG_ID = 'default-gemini';
+
+export const PREDEFINED_BASE_URLS = [
+    { id: 'gemini', name: 'Google Gemini', url: 'https://generativelanguage.googleapis.com/v1beta' },
+    { id: 'openai', name: 'OpenAI', url: 'https://api.openai.com/v1' },
+    { id: 'openrouter', name: 'OpenRouter', url: 'https://openrouter.ai/api/v1' },
+    { id: 'grok', name: 'Grok (xAI)', url: 'https://api.x.ai/v1' },
+    { id: 'anthropic', name: 'Anthropic Claude', url: 'https://api.anthropic.com/v1' },
+    { id: 'azure-openai', name: 'Azure OpenAI', url: 'https://your-resource-name.openai.azure.com' },
+    { id: 'local-ollama', name: 'Local Ollama', url: 'http://localhost:11434/v1' },
+    { id: 'custom', name: 'Custom URL', url: '' },
+];
