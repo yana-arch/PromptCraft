@@ -123,12 +123,42 @@ export const PROMPT_STYLES: PromptStyle[] = [
 ];
 
 export const PROMPT_TECHNIQUES = [
-    { id: 'zero-shot', nameKey: 'techniques.zero-shot.name', descriptionKey: 'techniques.zero-shot.description' },
-    { id: 'few-shot', nameKey: 'techniques.few-shot.name', descriptionKey: 'techniques.few-shot.description' },
-    { id: 'chain-of-thought', nameKey: 'techniques.chain-of-thought.name', descriptionKey: 'techniques.chain-of-thought.description' },
-    { id: 'self-consistency', nameKey: 'techniques.self-consistency.name', descriptionKey: 'techniques.self-consistency.description' },
-    { id: 'rag', nameKey: 'techniques.rag.name', descriptionKey: 'techniques.rag.description' },
-]
+    { 
+        id: 'zero-shot', 
+        nameKey: 'techniques.zero-shot.name', 
+        descriptionKey: 'techniques.zero-shot.description',
+        explanationKey: 'techniques.zero-shot.explanation',
+        exampleKey: 'techniques.zero-shot.example'
+    },
+    { 
+        id: 'few-shot', 
+        nameKey: 'techniques.few-shot.name', 
+        descriptionKey: 'techniques.few-shot.description',
+        explanationKey: 'techniques.few-shot.explanation',
+        exampleKey: 'techniques.few-shot.example'
+    },
+    { 
+        id: 'chain-of-thought', 
+        nameKey: 'techniques.chain-of-thought.name', 
+        descriptionKey: 'techniques.chain-of-thought.description',
+        explanationKey: 'techniques.chain-of-thought.explanation',
+        exampleKey: 'techniques.chain-of-thought.example'
+    },
+    { 
+        id: 'self-consistency', 
+        nameKey: 'techniques.self-consistency.name', 
+        descriptionKey: 'techniques.self-consistency.description',
+        explanationKey: 'techniques.self-consistency.explanation',
+        exampleKey: 'techniques.self-consistency.example'
+    },
+    { 
+        id: 'rag', 
+        nameKey: 'techniques.rag.name', 
+        descriptionKey: 'techniques.rag.description',
+        explanationKey: 'techniques.rag.explanation',
+        exampleKey: 'techniques.rag.example'
+    },
+];
 
 export const TONES = ['Professional', 'Friendly', 'Humorous', 'Formal', 'Casual', 'Persuasive'];
 export const FORMATS = ['Plain Text', 'Markdown', 'JSON', 'HTML', 'Bulleted List', 'Numbered List'];

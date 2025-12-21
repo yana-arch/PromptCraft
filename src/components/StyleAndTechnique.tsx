@@ -1,26 +1,40 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { PROMPT_STYLES, PROMPT_TECHNIQUES, TONES, FORMATS, LENGTHS } from '../constants';
 import type { Customizations } from '../types';
 import { Tooltip } from './common/Tooltip';
+import { InfoIcon } from './common/Icons';
+import { TechniqueInfoModal } from './modals/TechniqueInfoModal';
 
 interface StyleSelectorProps {
   title: string;
   options: {id: string, nameKey: string, descriptionKey: string}[];
   selectedId: string;
   onSelect: (id: string) => void;
+  onInfoClick?: (id: string) => void;
   t: (key: string) => string;
 }
-const StyleSelector: React.FC<StyleSelectorProps> = ({ title, options, selectedId, onSelect, t }) => (
+const StyleSelector: React.FC<StyleSelectorProps> = ({ title, options, selectedId, onSelect, onInfoClick, t }) => (
     <div>
       <h3 className="text-lg font-semibold text-text-primary mb-3">{title}</h3>
       <div className="space-y-2">
         {options.map(style => (
           <label key={style.id} className={`flex items-start p-3 rounded-md cursor-pointer transition-all border-2 ${selectedId === style.id ? 'bg-accent-primary/10 border-accent-primary' : 'border-border-primary hover:border-border-secondary'}`}>
             <input type="radio" name={title} checked={selectedId === style.id} onChange={() => onSelect(style.id)} className="mt-1 h-4 w-4 text-accent-primary bg-bg-tertiary border-border-secondary focus:ring-accent-primary" />
-            <div className="ml-3 text-sm">
-                <Tooltip text={t(style.descriptionKey)}>
-                    <span className="font-medium text-text-primary cursor-help">{t(style.nameKey)}</span>
-                </Tooltip>
+            <div className="ml-3 text-sm flex-1 flex items-center justify-between">
+                <div>
+                    <Tooltip text={t(style.descriptionKey)}>
+                        <span className="font-medium text-text-primary cursor-help">{t(style.nameKey)}</span>
+                    </Tooltip>
+                </div>
+                {onInfoClick && (
+                    <button 
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onInfoClick(style.id); }}
+                        className="text-text-tertiary hover:text-accent-primary transition-colors p-1"
+                        title="Learn more"
+                    >
+                        <InfoIcon className="h-4 w-4" />
+                    </button>
+                )}
             </div>
           </label>
         ))}
@@ -177,6 +191,14 @@ export const StyleAndTechnique: React.FC<StyleAndTechniqueProps> = ({
     setCustomizations,
     t
 }) => {
+    const [infoModalOpen, setInfoModalOpen] = useState(false);
+    const [activeInfoTechniqueId, setActiveInfoTechniqueId] = useState<string | null>(null);
+
+    const handleOpenInfo = (id: string) => {
+        setActiveInfoTechniqueId(id);
+        setInfoModalOpen(true);
+    };
+
     return (
         <div className="space-y-6">
             <StyleSelector
@@ -192,6 +214,7 @@ export const StyleAndTechnique: React.FC<StyleAndTechniqueProps> = ({
                     options={PROMPT_TECHNIQUES}
                     selectedId={selectedTechniqueId}
                     onSelect={onSelectTechnique}
+                    onInfoClick={handleOpenInfo}
                     t={t}
                 />
                 {selectedTechniqueId === 'few-shot' && (
@@ -202,6 +225,13 @@ export const StyleAndTechnique: React.FC<StyleAndTechniqueProps> = ({
                 )}
             </div>
             <CustomizationPanel customizations={customizations} onChange={setCustomizations} t={t} />
+            
+            <TechniqueInfoModal 
+                isOpen={infoModalOpen}
+                onClose={() => setInfoModalOpen(false)}
+                techniqueId={activeInfoTechniqueId || ''}
+                t={t}
+            />
         </div>
     )
 }

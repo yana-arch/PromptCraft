@@ -93,11 +93,41 @@ export const translations = {
       },
       techniques: {
         title: 'Prompting Technique',
-        'zero-shot': { name: 'Zero-Shot', description: 'A direct instruction without providing any examples. The model relies on its existing knowledge.', instruction: 'Respond directly based on the provided instructions.' },
-        'few-shot': { name: 'Few-Shot', description: 'Provide a few examples of input/output pairs to guide the model\'s response format and style.', instruction: 'Follow the pattern of the examples provided below.' },
-        'chain-of-thought': { name: 'Chain-of-Thought (CoT)', description: 'Encourage the model to "think step by step" to break down complex problems.', instruction: 'Break down the problem into smaller steps and think out loud before giving the final answer.' },
-        'self-consistency': { name: 'Self-Consistency', description: 'Generate multiple reasoning paths and use the most consistent answer (conceptual).', instruction: 'Explore multiple approaches or reasoning paths to solve the problem and choose the most reliable one.' },
-        rag: { name: 'Retrieval-Augmented Generation (RAG)', description: 'Provide a specific document or context for the model to use as its source of truth.', instruction: 'Base your answer solely on the provided document context.' },
+        'zero-shot': { 
+            name: 'Zero-Shot', 
+            description: 'A direct instruction without providing any examples. The model relies on its existing knowledge.', 
+            instruction: 'Respond directly based on the provided instructions.',
+            explanation: 'Zero-shot prompting is the simplest technique where you simply ask the model to do something without providing any examples. It relies entirely on the model\'s pre-trained knowledge to understand the task.',
+            example: 'User: "Translate the following sentence to French: Hello, how are you?"\nAI: "Bonjour, comment allez-vous?"'
+        },
+        'few-shot': { 
+            name: 'Few-Shot', 
+            description: 'Provide a few examples of input/output pairs to guide the model\'s response format and style.', 
+            instruction: 'Follow the pattern of the examples provided below.',
+            explanation: 'Few-shot prompting involves providing the model with a few examples (shots) of what you want it to do. This helps condition the model to follow a specific pattern or style.',
+            example: 'User: "Convert these emotions to emojis:\nHappy -> :)\nSad -> :(\nExcited ->"\nAI: ":D"'
+        },
+        'chain-of-thought': { 
+            name: 'Chain-of-Thought (CoT)', 
+            description: 'Encourage the model to "think step by step" to break down complex problems.', 
+            instruction: 'Break down the problem into smaller steps and think out loud before giving the final answer.',
+            explanation: 'Chain-of-Thought (CoT) prompting encourages the model to explain its reasoning process step-by-step. This is particularly useful for complex arithmetic, common sense, and symbolic reasoning tasks.',
+            example: 'User: "If I have 3 apples and buy 2 more, then eat 1, how many do I have? Let\'s think step by step."\nAI: "Start with 3 apples. Buy 2 more: 3 + 2 = 5. Eat 1: 5 - 1 = 4. Final answer: 4 apples."'
+        },
+        'self-consistency': { 
+            name: 'Self-Consistency', 
+            description: 'Generate multiple reasoning paths and use the most consistent answer (conceptual).', 
+            instruction: 'Explore multiple approaches or reasoning paths to solve the problem and choose the most reliable one.',
+            explanation: 'Self-consistency involves asking the model to generate multiple different reasoning paths for the same problem and then selecting the most consistent answer across those paths. It improves performance on complex reasoning tasks.',
+            example: 'User: (Asks a complex logic puzzle)\nAI: (Generates 3 different ways to solve it, and concludes with the answer that appears most frequently)'
+        },
+        'rag': { 
+            name: 'Retrieval-Augmented Generation (RAG)', 
+            description: 'Provide a specific document or context for the model to use as its source of truth.', 
+            instruction: 'Base your answer solely on the provided document context.',
+            explanation: 'RAG involves retrieving relevant information from an external source (like a document or database) and providing it to the model as context. This helps the model answer questions about specific or private data it wasn\'t trained on.',
+            example: 'User: "Based on the report below, what was the Q3 revenue?"\n[Report Content...]\nAI: "According to the report, Q3 revenue was $1.5M."'
+        },
         fewShotEditorTitle: 'Few-Shot Examples',
         inputLabel: 'Example Input',
         outputLabel: 'Example Output',
@@ -332,11 +362,41 @@ export const translations = {
         },
         techniques: {
             title: 'Kỹ thuật Prompt',
-            'zero-shot': { name: 'Zero-Shot', description: 'Một chỉ thị trực tiếp mà không cung cấp bất kỳ ví dụ nào. Mô hình dựa vào kiến thức hiện có của nó.', instruction: 'Trả lời trực tiếp dựa trên các hướng dẫn được cung cấp.' },
-            'few-shot': { name: 'Few-Shot', description: 'Cung cấp một vài ví dụ về cặp đầu vào/đầu ra để hướng dẫn định dạng và phong cách trả lời của mô hình.', instruction: 'Làm theo mẫu của các ví dụ được cung cấp dưới đây.' },
-            'chain-of-thought': { name: 'Chuỗi Tư duy (CoT)', description: 'Khuyến khích mô hình "suy nghĩ từng bước" để giải quyết các vấn đề phức tạp.', instruction: 'Phân tích vấn đề thành các bước nhỏ hơn và suy nghĩ thành tiếng trước khi đưa ra câu trả lời cuối cùng.' },
-            'self-consistency': { name: 'Tự nhất quán', description: 'Tạo ra nhiều luồng lý luận và sử dụng câu trả lời nhất quán nhất (khái niệm).', instruction: 'Khám phá nhiều cách tiếp cận hoặc luồng lý luận để giải quyết vấn đề và chọn cái đáng tin cậy nhất.' },
-            rag: { name: 'Truy xuất-Tăng cường-Tạo sinh (RAG)', description: 'Cung cấp một tài liệu hoặc ngữ cảnh cụ thể để mô hình sử dụng làm nguồn sự thật.', instruction: 'Chỉ dựa vào ngữ cảnh tài liệu được cung cấp để trả lời.' },
+            'zero-shot': { 
+                name: 'Zero-Shot', 
+                description: 'Một chỉ thị trực tiếp mà không cung cấp bất kỳ ví dụ nào. Mô hình dựa vào kiến thức hiện có của nó.', 
+                instruction: 'Trả lời trực tiếp dựa trên các hướng dẫn được cung cấp.',
+                explanation: 'Zero-shot prompting là kỹ thuật đơn giản nhất, nơi bạn chỉ cần yêu cầu mô hình làm điều gì đó mà không cung cấp bất kỳ ví dụ nào. Nó dựa hoàn toàn vào kiến thức đã được huấn luyện trước của mô hình.',
+                example: 'Người dùng: "Dịch câu sau sang tiếng Pháp: Hello, how are you?"\nAI: "Bonjour, comment allez-vous?"'
+            },
+            'few-shot': { 
+                name: 'Few-Shot', 
+                description: 'Cung cấp một vài ví dụ về cặp đầu vào/đầu ra để hướng dẫn định dạng và phong cách trả lời của mô hình.', 
+                instruction: 'Làm theo mẫu của các ví dụ được cung cấp dưới đây.',
+                explanation: 'Few-shot prompting liên quan đến việc cung cấp cho mô hình một vài ví dụ về những gì bạn muốn nó làm. Điều này giúp định hướng mô hình tuân theo một mẫu hoặc phong cách cụ thể.',
+                example: 'Người dùng: "Chuyển đổi cảm xúc thành emoji:\nVui -> :)\nBuồn -> :(\nHào hứng ->"\nAI: ":D"'
+            },
+            'chain-of-thought': { 
+                name: 'Chuỗi Tư duy (CoT)', 
+                description: 'Khuyến khích mô hình "suy nghĩ từng bước" để giải quyết các vấn đề phức tạp.', 
+                instruction: 'Phân tích vấn đề thành các bước nhỏ hơn và suy nghĩ thành tiếng trước khi đưa ra câu trả lời cuối cùng.',
+                explanation: 'Chuỗi Tư duy (CoT) khuyến khích mô hình giải thích quy trình suy luận của nó từng bước một. Điều này đặc biệt hữu ích cho các bài toán số học, lẽ thường và suy luận logic phức tạp.',
+                example: 'Người dùng: "Nếu tôi có 3 quả táo và mua thêm 2 quả, sau đó ăn 1 quả, tôi còn bao nhiêu quả? Hãy suy nghĩ từng bước."\nAI: "Bắt đầu với 3 quả. Mua thêm 2: 3 + 2 = 5. Ăn 1: 5 - 1 = 4. Câu trả lời cuối cùng: 4 quả táo."'
+            },
+            'self-consistency': { 
+                name: 'Tự nhất quán', 
+                description: 'Tạo ra nhiều luồng lý luận và sử dụng câu trả lời nhất quán nhất (khái niệm).', 
+                instruction: 'Khám phá nhiều cách tiếp cận hoặc luồng lý luận để giải quyết vấn đề và chọn cái đáng tin cậy nhất.',
+                explanation: 'Tự nhất quán liên quan đến việc yêu cầu mô hình tạo ra nhiều luồng suy luận khác nhau cho cùng một vấn đề và sau đó chọn câu trả lời nhất quán nhất giữa các luồng đó.',
+                example: 'Người dùng: (Hỏi một câu đố logic phức tạp)\nAI: (Tạo ra 3 cách giải khác nhau, và kết luận với câu trả lời xuất hiện thường xuyên nhất)'
+            },
+            rag: { 
+                name: 'Truy xuất-Tăng cường-Tạo sinh (RAG)', 
+                description: 'Cung cấp một tài liệu hoặc ngữ cảnh cụ thể để mô hình sử dụng làm nguồn sự thật.', 
+                instruction: 'Chỉ dựa vào ngữ cảnh tài liệu được cung cấp để trả lời.',
+                explanation: 'RAG liên quan đến việc truy xuất thông tin liên quan từ nguồn bên ngoài (như tài liệu hoặc cơ sở dữ liệu) và cung cấp cho mô hình dưới dạng ngữ cảnh. Điều này giúp mô hình trả lời câu hỏi về dữ liệu cụ thể hoặc riêng tư mà nó chưa được huấn luyện.',
+                example: 'Người dùng: "Dựa trên báo cáo dưới đây, doanh thu quý 3 là bao nhiêu?"\n[Nội dung Báo cáo...]\nAI: "Theo báo cáo, doanh thu quý 3 là 1.5 triệu đô la."'
+            },
             fewShotEditorTitle: 'Ví dụ Few-Shot',
             inputLabel: 'Đầu vào Mẫu',
             outputLabel: 'Đầu ra Mẫu',
