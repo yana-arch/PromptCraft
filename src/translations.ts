@@ -179,6 +179,16 @@ export const translations = {
         ragEditorTitle: 'RAG Context',
         ragContextPlaceholder: 'Paste the document or context the AI should use here...'
       },
+      anatomy: {
+        toggleLabel: 'Show Anatomy',
+        toggleLabelHide: 'Show Text',
+        role: { label: 'Role', description: 'Defines the persona or perspective the AI should adopt. This helps frame the answer in the right tone and level of expertise.' },
+        task: { label: 'Task', description: 'The core objective or instruction. This tells the AI exactly what you want it to do.' },
+        context: { label: 'Context', description: 'Background information or data that helps the AI understand the specific situation or inputs.' },
+        technique: { label: 'Technique', description: 'The specific method used to guide the AI\'s reasoning process (e.g., Chain-of-Thought, Few-Shot).' },
+        style: { label: 'Style', description: 'The desired tone, format, or writing style of the output.' },
+        constraints: { label: 'Constraints', description: 'Specific limits or requirements (e.g., word count, format) that the AI must follow.' }
+      },
       customizations: {
         title: 'Output Customizations',
         tone: 'Tone',
@@ -619,6 +629,16 @@ export const translations = {
             networkError: 'Đã xảy ra lỗi mạng',
             authFailed: 'Xác thực thất bại. Kiểm tra khóa API của bạn.',
             endpointNotFound: 'Không tìm thấy điểm cuối API. Kiểm tra URL cơ sở của bạn.',
+        },
+        anatomy: {
+            toggleLabel: 'Hiển thị Cấu trúc',
+            toggleLabelHide: 'Hiển thị Văn bản',
+            role: { label: 'Vai trò', description: 'Xác định tính cách hoặc góc nhìn mà AI nên áp dụng. Giúp định hình giọng điệu và mức độ chuyên môn.' },
+            task: { label: 'Nhiệm vụ', description: 'Mục tiêu cốt lõi hoặc hướng dẫn chính. Cho AI biết chính xác bạn muốn nó làm gì.' },
+            context: { label: 'Ngữ cảnh', description: 'Thông tin nền tảng hoặc dữ liệu giúp AI hiểu rõ tình huống cụ thể.' },
+            technique: { label: 'Kỹ thuật', description: 'Phương pháp cụ thể được sử dụng để hướng dẫn quy trình suy luận của AI (ví dụ: Chuỗi suy nghĩ, Few-Shot).' },
+            style: { label: 'Phong cách', description: 'Giọng điệu, định dạng hoặc phong cách viết mong muốn của đầu ra.' },
+            constraints: { label: 'Ràng buộc', description: 'Các giới hạn hoặc yêu cầu cụ thể (ví dụ: số lượng từ, định dạng) mà AI phải tuân theo.' }
         }
       }
 };
