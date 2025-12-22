@@ -128,6 +128,48 @@ export const translations = {
             explanation: 'RAG involves retrieving relevant information from an external source (like a document or database) and providing it to the model as context. This helps the model answer questions about specific or private data it wasn\'t trained on.',
             example: 'User: "Based on the report below, what was the Q3 revenue?"\n[Report Content...]\nAI: "According to the report, Q3 revenue was $1.5M."'
         },
+        'tree-of-thoughts': {
+            name: 'Tree of Thoughts (ToT)',
+            description: 'Explore multiple reasoning paths using a tree structure to solve complex problems.',
+            instruction: 'Imagine three different experts are answering this question. All experts will write down 1 step of their thinking, then share it with the group.',
+            explanation: 'Tree of Thoughts allows the model to explore multiple reasoning paths (branches) simultaneously, evaluating each one and backtracking if necessary. It is powerful for tasks requiring strategic planning or creative problem solving.',
+            example: 'User: "How can I transport 4 people across a river with a boat that holds 2?"\nAI: "Expert 1: ... Expert 2: ... Expert 3: ... Let\'s evaluate the best approach..."'
+        },
+        'react': {
+            name: 'ReAct (Reason + Act)',
+            description: 'Combine reasoning and action execution to solve dynamic problems.',
+            instruction: 'Solve the following task by alternating between Thought, Action, and Observation.',
+            explanation: 'ReAct prompts the model to generate reasoning traces (Thoughts) and task-specific actions (Actions) in an interleaved manner. It allows the model to interact with external tools or its own "mind" to gather information before answering.',
+            example: 'User: "What is the elevation of the capital of France?"\nAI: "Thought: I need to find the capital of France. Action: Search[Capital of France]. Observation: Paris. Thought: Now I need the elevation of Paris..."'
+        },
+        'self-refine': {
+            name: 'Self-Refine',
+            description: 'Iteratively critique and improve the answer to ensure high quality.',
+            instruction: 'Generate an initial answer, then critique it for accuracy and clarity, and finally write a refined answer.',
+            explanation: 'Self-Refine asks the model to first generate a draft, then critique its own work based on specific criteria (e.g., style, safety, clarity), and finally rewrite the response incorporating the feedback.',
+            example: 'User: "Write an email to my boss."\nAI: "Draft: ... Critique: Too casual. Refined Answer: Dear [Name], I would like to..."'
+        },
+        'least-to-most': {
+            name: 'Least-to-Most',
+            description: 'Break down complex problems into sub-problems and solve them sequentially.',
+            instruction: 'Break down the following problem into a series of sub-problems. Then, solve them one by one to reach the final answer.',
+            explanation: 'Least-to-Most prompting teaches the model to decompose a complex problem into a list of easier sub-problems. It then solves the sub-problems sequentially, using the answers from previous steps to help with later ones.',
+            example: 'User: "Who was the grandfather of the director of the movie \'Inception\'?"\nAI: "Sub-problem 1: Who directed \'Inception\'? (Christopher Nolan). Sub-problem 2: Who is Christopher Nolan\'s grandfather?..."'
+        },
+        'generated-knowledge': {
+            name: 'Generated Knowledge',
+            description: 'Generate relevant knowledge first to augment the context for the final answer.',
+            instruction: 'Generate 5 facts or pieces of knowledge relevant to the following question. Then, use this knowledge to answer the question.',
+            explanation: 'This technique asks the model to first generate knowledge related to the query, and then use that generated knowledge to inform its final answer. It improves accuracy on tasks requiring commonsense or specific domain knowledge.',
+            example: 'User: "Is a golf ball larger than a ping pong ball?"\nAI: "Knowledge: Golf ball diameter is ~42.7mm. Ping pong ball diameter is ~40mm. Answer: Yes, a golf ball is slightly larger."'
+        },
+        'skeleton-of-thought': {
+            name: 'Skeleton-of-Thought',
+            description: 'Generate a skeleton or outline first to ensure structured and comprehensive content.',
+            instruction: 'First, write a concise outline for the response. Then, expand on each point of the outline to provide a full answer.',
+            explanation: 'Skeleton-of-Thought focuses on structure. By generating an outline (skeleton) first, the model produces more organized, comprehensive, and faster responses, especially for long-form content generation.',
+            example: 'User: "Write a report on renewable energy."\nAI: "Outline: 1. Introduction 2. Solar 3. Wind 4. Conclusion. \n\n1. Introduction: Renewable energy is..."'
+        },
         fewShotEditorTitle: 'Few-Shot Examples',
         inputLabel: 'Example Input',
         outputLabel: 'Example Output',
@@ -396,6 +438,48 @@ export const translations = {
                 instruction: 'Chỉ dựa vào ngữ cảnh tài liệu được cung cấp để trả lời.',
                 explanation: 'RAG liên quan đến việc truy xuất thông tin liên quan từ nguồn bên ngoài (như tài liệu hoặc cơ sở dữ liệu) và cung cấp cho mô hình dưới dạng ngữ cảnh. Điều này giúp mô hình trả lời câu hỏi về dữ liệu cụ thể hoặc riêng tư mà nó chưa được huấn luyện.',
                 example: 'Người dùng: "Dựa trên báo cáo dưới đây, doanh thu quý 3 là bao nhiêu?"\n[Nội dung Báo cáo...]\nAI: "Theo báo cáo, doanh thu quý 3 là 1.5 triệu đô la."'
+            },
+            'tree-of-thoughts': {
+                name: 'Cây Tư Duy (ToT)',
+                description: 'Khám phá nhiều luồng suy luận bằng cấu trúc cây để giải quyết vấn đề phức tạp.',
+                instruction: 'Hãy tưởng tượng ba chuyên gia khác nhau đang trả lời câu hỏi này. Tất cả các chuyên gia sẽ viết ra 1 bước suy nghĩ của họ, sau đó chia sẻ với nhóm.',
+                explanation: 'Cây Tư Duy cho phép mô hình khám phá nhiều luồng suy luận (nhánh) cùng lúc, đánh giá từng luồng và quay lại nếu cần thiết. Nó rất mạnh mẽ cho các nhiệm vụ đòi hỏi lập kế hoạch chiến lược hoặc giải quyết vấn đề sáng tạo.',
+                example: 'Người dùng: "Làm thế nào để đưa 4 người qua sông với một chiếc thuyền chỉ chở được 2 người?"\nAI: "Chuyên gia 1: ... Chuyên gia 2: ... Cùng đánh giá cách tiếp cận tốt nhất..."'
+            },
+            'react': {
+                name: 'ReAct (Lý luận + Hành động)',
+                description: 'Kết hợp lý luận và thực thi hành động để giải quyết các vấn đề động.',
+                instruction: 'Giải quyết nhiệm vụ sau bằng cách luân phiên giữa Suy nghĩ, Hành động và Quan sát.',
+                explanation: 'ReAct nhắc mô hình tạo ra các dấu vết suy luận (Suy nghĩ) và các hành động cụ thể (Hành động) một cách xen kẽ. Nó cho phép mô hình tương tác với các công cụ bên ngoài hoặc "tâm trí" của chính nó để thu thập thông tin trước khi trả lời.',
+                example: 'Người dùng: "Độ cao của thủ đô nước Pháp là bao nhiêu?"\nAI: "Suy nghĩ: Tôi cần tìm thủ đô của Pháp. Hành động: Tìm kiếm[Thủ đô của Pháp]. Quan sát: Paris. Suy nghĩ: Bây giờ tôi cần độ cao của Paris..."'
+            },
+            'self-refine': {
+                name: 'Tự Tinh chỉnh',
+                description: 'Lặp lại việc phê bình và cải thiện câu trả lời để đảm bảo chất lượng cao.',
+                instruction: 'Tạo một câu trả lời ban đầu, sau đó phê bình nó về độ chính xác và rõ ràng, và cuối cùng viết một câu trả lời đã tinh chỉnh.',
+                explanation: 'Tự Tinh chỉnh yêu cầu mô hình tạo ra một bản nháp trước, sau đó tự phê bình công việc của mình dựa trên các tiêu chí cụ thể (ví dụ: phong cách, độ an toàn, sự rõ ràng), và cuối cùng viết lại phản hồi kết hợp các phản hồi đó.',
+                example: 'Người dùng: "Viết email cho sếp của tôi."\nAI: "Bản nháp: ... Phê bình: Quá suồng sã. Câu trả lời tinh chỉnh: Kính gửi [Tên], tôi muốn..."'
+            },
+            'least-to-most': {
+                name: 'Từ Ít đến Nhiều (Least-to-Most)',
+                description: 'Chia nhỏ các vấn đề phức tạp thành các vấn đề con và giải quyết chúng tuần tự.',
+                instruction: 'Chia nhỏ vấn đề sau thành một loạt các vấn đề con. Sau đó, giải quyết từng vấn đề một để đạt được câu trả lời cuối cùng.',
+                explanation: 'Kỹ thuật Từ Ít đến Nhiều dạy mô hình phân rã một vấn đề phức tạp thành một danh sách các vấn đề con dễ hơn. Sau đó, nó giải quyết các vấn đề con một cách tuần tự, sử dụng các câu trả lời từ các bước trước để giúp cho các bước sau.',
+                example: 'Người dùng: "Ai là ông nội của đạo diễn phim \'Inception\'?"\nAI: "Vấn đề con 1: Ai đạo diễn phim \'Inception\'? (Christopher Nolan). Vấn đề con 2: Ông nội của Christopher Nolan là ai?..."'
+            },
+            'generated-knowledge': {
+                name: 'Kiến thức Tạo sinh',
+                description: 'Tạo kiến thức liên quan trước để tăng cường ngữ cảnh cho câu trả lời cuối cùng.',
+                instruction: 'Tạo 5 sự thật hoặc mẩu kiến thức liên quan đến câu hỏi sau. Sau đó, sử dụng kiến thức này để trả lời câu hỏi.',
+                explanation: 'Kỹ thuật này yêu cầu mô hình tạo ra kiến thức liên quan đến truy vấn trước, sau đó sử dụng kiến thức đã tạo đó để thông báo cho câu trả lời cuối cùng của nó. Nó cải thiện độ chính xác cho các nhiệm vụ đòi hỏi kiến thức thông thường hoặc kiến thức miền cụ thể.',
+                example: 'Người dùng: "Quả bóng golf có lớn hơn quả bóng bàn không?"\nAI: "Kiến thức: Đường kính bóng golf ~42.7mm. Đường kính bóng bàn ~40mm. Trả lời: Có, bóng golf lớn hơn một chút."'
+            },
+            'skeleton-of-thought': {
+                name: 'Khung Tư duy (Skeleton-of-Thought)',
+                description: 'Tạo một bộ khung hoặc dàn ý trước để đảm bảo nội dung có cấu trúc và toàn diện.',
+                instruction: 'Trước tiên, viết một dàn ý ngắn gọn cho phản hồi. Sau đó, mở rộng từng điểm của dàn ý để cung cấp một câu trả lời đầy đủ.',
+                explanation: 'Khung Tư duy tập trung vào cấu trúc. Bằng cách tạo ra một dàn ý (bộ khung) trước, mô hình tạo ra các phản hồi có tổ chức hơn, toàn diện hơn và nhanh hơn, đặc biệt là cho việc tạo nội dung dài.',
+                example: 'Người dùng: "Viết báo cáo về năng lượng tái tạo."\nAI: "Dàn ý: 1. Giới thiệu 2. Mặt trời 3. Gió 4. Kết luận. \n\n1. Giới thiệu: Năng lượng tái tạo là..."'
             },
             fewShotEditorTitle: 'Ví dụ Few-Shot',
             inputLabel: 'Đầu vào Mẫu',

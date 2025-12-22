@@ -158,6 +158,48 @@ export const PROMPT_TECHNIQUES = [
         explanationKey: 'techniques.rag.explanation',
         exampleKey: 'techniques.rag.example'
     },
+    {
+        id: 'tree-of-thoughts',
+        nameKey: 'techniques.tree-of-thoughts.name',
+        descriptionKey: 'techniques.tree-of-thoughts.description',
+        explanationKey: 'techniques.tree-of-thoughts.explanation',
+        exampleKey: 'techniques.tree-of-thoughts.example'
+    },
+    {
+        id: 'react',
+        nameKey: 'techniques.react.name',
+        descriptionKey: 'techniques.react.description',
+        explanationKey: 'techniques.react.explanation',
+        exampleKey: 'techniques.react.example'
+    },
+    {
+        id: 'self-refine',
+        nameKey: 'techniques.self-refine.name',
+        descriptionKey: 'techniques.self-refine.description',
+        explanationKey: 'techniques.self-refine.explanation',
+        exampleKey: 'techniques.self-refine.example'
+    },
+    {
+        id: 'least-to-most',
+        nameKey: 'techniques.least-to-most.name',
+        descriptionKey: 'techniques.least-to-most.description',
+        explanationKey: 'techniques.least-to-most.explanation',
+        exampleKey: 'techniques.least-to-most.example'
+    },
+    {
+        id: 'generated-knowledge',
+        nameKey: 'techniques.generated-knowledge.name',
+        descriptionKey: 'techniques.generated-knowledge.description',
+        explanationKey: 'techniques.generated-knowledge.explanation',
+        exampleKey: 'techniques.generated-knowledge.example'
+    },
+    {
+        id: 'skeleton-of-thought',
+        nameKey: 'techniques.skeleton-of-thought.name',
+        descriptionKey: 'techniques.skeleton-of-thought.description',
+        explanationKey: 'techniques.skeleton-of-thought.explanation',
+        exampleKey: 'techniques.skeleton-of-thought.example'
+    }
 ];
 
 export const TONES = ['Professional', 'Friendly', 'Humorous', 'Formal', 'Casual', 'Persuasive'];
