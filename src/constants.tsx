@@ -224,3 +224,189 @@ export const PREDEFINED_BASE_URLS = [
     { id: 'local-ollama', name: 'Local Ollama', url: 'http://localhost:11434/v1' },
     { id: 'custom', name: 'Custom URL', url: '' },
 ];
+
+// Advanced Mode Constants
+import { AIModel, AIPersona, PromptTemplate } from './types';
+
+export const AI_MODELS: AIModel[] = [
+  {
+    id: 'gpt-4',
+    name: 'GPT-4',
+    provider: 'openai',
+    capabilities: ['reasoning', 'coding', 'creative-writing', 'analysis'],
+    maxTokens: 8192,
+    specialFeatures: ['vision', 'function-calling']
+  },
+  {
+    id: 'claude-3',
+    name: 'Claude 3',
+    provider: 'anthropic',
+    capabilities: ['reasoning', 'coding', 'analysis', 'summarization'],
+    maxTokens: 100000,
+    specialFeatures: ['constitutional-ai', 'long-context']
+  },
+  {
+    id: 'gemini-pro',
+    name: 'Gemini Pro',
+    provider: 'google',
+    capabilities: ['multimodal', 'reasoning', 'coding'],
+    maxTokens: 32768,
+    specialFeatures: ['vision', 'audio']
+  }
+];
+
+export const PRESET_PERSONAS: AIPersona[] = [
+  {
+    id: 'teacher',
+    name: 'Giáo viên',
+    role: 'Giáo viên chuyên nghiệp',
+    personality: 'Kiên nhẫn, tận tâm, dễ hiểu',
+    expertise: ['Giáo dục', 'Sư phạm', 'Giải thích khái niệm'],
+    tone: 'Thân thiện và khuyến khích',
+    constraints: ['Phù hợp với độ tuổi học sinh', 'Sử dụng ví dụ thực tế']
+  },
+  {
+    id: 'developer',
+    name: 'Lập trình viên',
+    role: 'Senior Software Developer',
+    personality: 'Logic, chi tiết, thực tế',
+    expertise: ['Coding', 'System Design', 'Best Practices'],
+    tone: 'Chuyên nghiệp và kỹ thuật',
+    constraints: ['Code phải clean và có comment', 'Tuân thủ SOLID principles']
+  },
+  {
+    id: 'analyst',
+    name: 'Nhà phân tích',
+    role: 'Data Analyst',
+    personality: 'Phân tích, khách quan, dựa trên dữ liệu',
+    expertise: ['Data Analysis', 'Statistics', 'Visualization'],
+    tone: 'Chính xác và khoa học',
+    constraints: ['Dựa trên evidence', 'Trình bày số liệu rõ ràng']
+  }
+];
+
+export const PROMPT_TEMPLATES: PromptTemplate[] = [
+  {
+    id: 'role-based',
+    name: 'Role-based Prompt',
+    category: 'general',
+    structure: {
+      sections: [
+        {
+          id: 'role',
+          type: 'role',
+          label: 'Vai trò',
+          content: 'You are {role}',
+          editable: true,
+          required: true,
+          order: 1
+        },
+        {
+          id: 'context',
+          type: 'context',
+          label: 'Ngữ cảnh',
+          content: '{context}',
+          editable: true,
+          required: false,
+          order: 2
+        },
+        {
+          id: 'task',
+          type: 'task',
+          label: 'Nhiệm vụ',
+          content: '{task}',
+          editable: true,
+          required: true,
+          order: 3
+        }
+      ],
+      variables: [
+        {
+          id: 'role',
+          name: 'role',
+          type: 'text',
+          validation: { required: true }
+        },
+        {
+          id: 'context',
+          name: 'context',
+          type: 'text'
+        },
+        {
+          id: 'task',
+          name: 'task',
+          type: 'text',
+          validation: { required: true }
+        }
+      ]
+    }
+  },
+  {
+    id: 'chain-of-thought',
+    name: 'Chain of Thought',
+    category: 'reasoning',
+    structure: {
+      sections: [
+        {
+          id: 'task',
+          type: 'task',
+          label: 'Vấn đề',
+          content: '{problem}',
+          editable: true,
+          required: true,
+          order: 1
+        },
+        {
+          id: 'constraints',
+          type: 'constraints',
+          label: 'Yêu cầu',
+          content: 'Let\'s think step by step:\n{requirements}',
+          editable: true,
+          required: false,
+          order: 2
+        }
+      ],
+      variables: [
+        {
+          id: 'problem',
+          name: 'problem',
+          type: 'text',
+          validation: { required: true }
+        },
+        {
+          id: 'requirements',
+          name: 'requirements',
+          type: 'text'
+        }
+      ]
+    }
+  }
+];
+
+export const PROMPT_TECHNIQUES_ADVANCED = [
+  {
+    id: 'few-shot',
+    name: 'Few-shot Learning',
+    description: 'Cung cấp ví dụ để AI học pattern'
+  },
+  {
+    id: 'chain-of-thought',
+    name: 'Chain of Thought',
+    description: 'Yêu cầu AI giải thích từng bước suy nghĩ'
+  },
+  {
+    id: 'tree-of-thought',
+    name: 'Tree of Thought',
+    description: 'Khám phá nhiều hướng suy nghĩ'
+  },
+  {
+    id: 'self-consistency',
+    name: 'Self-Consistency',
+    description: 'Tạo nhiều câu trả lời và chọn tốt nhất'
+  },
+  {
+    id: 'constitutional-ai',
+    name: 'Constitutional AI',
+    description: 'AI tự đánh giá và cải thiện câu trả lời'
+  }
+];

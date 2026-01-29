@@ -123,3 +123,77 @@ export interface AppState {
     chatSystemPrompt: string;
     chatMessages: ChatMessage[];
 }
+
+// Advanced Mode Types
+export interface Example {
+  input: string;
+  output: string;
+}
+
+export interface AIModel {
+  id: string;
+  name: string;
+  provider: 'openai' | 'anthropic' | 'google' | 'meta' | 'custom';
+  capabilities: string[];
+  maxTokens: number;
+  specialFeatures?: string[];
+}
+
+export interface AIPersona {
+  id: string;
+  name: string;
+  role: string;
+  personality: string;
+  expertise: string[];
+  tone: string;
+  constraints?: string[];
+  background?: string;
+  examples?: string[];
+}
+
+export interface PromptSection {
+  id: string;
+  type: 'role' | 'context' | 'task' | 'format' | 'examples' | 'constraints' | 'custom';
+  label: string;
+  content: string;
+  editable: boolean;
+  required: boolean;
+  order: number;
+}
+
+export interface PromptVariable {
+  id: string;
+  name: string;
+  type: 'text' | 'select' | 'multiselect' | 'number' | 'boolean';
+  defaultValue?: any;
+  options?: string[];
+  validation?: {
+    required?: boolean;
+    minLength?: number;
+    maxLength?: number;
+    pattern?: string;
+  };
+}
+
+export interface PromptTemplate {
+  id: string;
+  name: string;
+  category: string;
+  structure: {
+    sections: PromptSection[];
+    variables: PromptVariable[];
+  };
+  targetModel?: string;
+  persona?: AIPersona;
+}
+
+export interface AdvancedPromptConfig {
+  targetModel: AIModel;
+  persona?: AIPersona;
+  template?: PromptTemplate;
+  outputFormat: 'text' | 'json' | 'markdown' | 'code' | 'structured';
+  chainOfThought: boolean;
+  fewShotExamples: Example[];
+  temperature?: number;
+  maxTokens?: number;
+}

@@ -1,0 +1,93 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+@layer base {
+  :root, .theme-slate {
+    /* Light Theme matching the screenshot */
+    --color-bg-primary: 255 255 255;
+    --color-bg-secondary: 248 250 252;
+    --color-bg-tertiary: 241 245 249;
+    --color-border-primary: 226 232 240;
+    --color-border-secondary: 203 213 225;
+    --color-text-primary: 15 23 42;
+    --color-text-secondary: 51 65 85;
+    --color-text-tertiary: 100 116 139;
+    --color-accent-primary: 15 23 42;
+    --color-accent-primary-hover: 30 41 59;
+    --color-accent-secondary: 79 70 229;
+    --color-accent-secondary-hover: 67 56 202;
+  }
+
+  .theme-midnight {
+    /* Dark Theme */
+    --color-bg-primary: 15 23 42;
+    --color-bg-secondary: 30 41 59;
+    --color-bg-tertiary: 51 65 85;
+    --color-border-primary: 51 65 85;
+    --color-border-secondary: 71 85 105;
+    --color-text-primary: 248 250 252;
+    --color-text-secondary: 203 213 225;
+    --color-text-tertiary: 148 163 184;
+    --color-accent-primary: 20 184 166;
+    --color-accent-primary-hover: 45 212 191;
+    --color-accent-secondary: 99 102 241;
+    --color-accent-secondary-hover: 129 140 248;
+  }
+
+  body {
+    @apply bg-bg-primary text-text-primary transition-colors duration-300;
+  }
+}
+
+/* Prose styles */
+.prose-styles p { margin-bottom: 1em; }
+.prose-styles p:last-child { margin-bottom: 0; }
+.prose-styles strong { color: rgb(var(--color-text-primary)); font-weight: 600; }
+.prose-styles em { font-style: italic; }
+.prose-styles ul, .prose-styles ol { margin-left: 1.5rem; margin-bottom: 1rem; padding-left: 1rem;}
+.prose-styles ul { list-style-type: disc; }
+.prose-styles ol { list-style-type: decimal; }
+.prose-styles li { margin-bottom: 0.25rem; }
+.prose-styles pre {
+    background-color: rgb(var(--color-bg-primary) / 0.8);
+    color: rgb(var(--color-text-secondary));
+    padding: 0.75rem;
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 0.375rem;
+    overflow-x: auto;
+    font-size: 0.875em;
+    line-height: 1.25rem;
+}
+.prose-styles pre code.hljs {
+  background-color: transparent;
+  padding: 0;
+}
+.prose-styles code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+.prose-styles :not(pre) > code {
+    background-color: rgb(var(--color-bg-tertiary) / 0.7);
+    color: rgb(var(--color-accent-secondary));
+    padding: 0.125em 0.25em;
+    border-radius: 0.25rem;
+    font-size: 0.9em;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-fadeIn { animation: fadeIn 0.3s ease-out; }
+.animate-fade-in-up { animation: fadeInUp 0.5s ease-out; }
+.animate-scaleIn { animation: scaleIn 0.2s ease-out; }

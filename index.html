@@ -5,7 +5,6 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PromptCraft - AI Prompt Architect</title>
-    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
   <script type="importmap">
@@ -18,93 +17,6 @@
     "react/": "https://aistudiocdn.com/react@^19.1.1/"
   }
 }
-</script>
-<style>
-    :root, .theme-slate {
-      --color-bg-primary: 15 23 42; /* slate-900 */
-      --color-bg-secondary: 30 41 59; /* slate-800 */
-      --color-bg-tertiary: 51 65 85; /* slate-700 */
-      --color-border-primary: 51 65 85; /* slate-700 */
-      --color-border-secondary: 71 85 105; /* slate-600 */
-      --color-text-primary: 248 250 252; /* slate-50 */
-      --color-text-secondary: 203 213 225; /* slate-300 */
-      --color-text-tertiary: 148 163 184; /* slate-400 */
-      --color-accent-primary: 20 184 166; /* teal-500 */
-      --color-accent-primary-hover: 45 212 191; /* teal-400 */
-      --color-accent-secondary: 99 102 241; /* indigo-500 */
-      --color-accent-secondary-hover: 129 140 248; /* indigo-400 */
-    }
-    .theme-midnight {
-      --color-bg-primary: 10 10 17; /* near-black */
-      --color-bg-secondary: 23 23 33; /* dark-gray */
-      --color-bg-tertiary: 35 35 50; /* mid-gray */
-      --color-border-primary: 40 40 58;
-      --color-border-secondary: 60 60 85;
-      --color-text-primary: 230 230 255;
-      --color-text-secondary: 190 190 220;
-      --color-text-tertiary: 130 130 160;
-      --color-accent-primary: 59 130 246; /* blue-500 */
-      --color-accent-primary-hover: 96 165 250; /* blue-400 */
-      --color-accent-secondary: 139 92 246; /* violet-500 */
-      --color-accent-secondary-hover: 167 139 250; /* violet-400 */
-    }
-</style>
-<style>
-    .prose-styles p { margin-bottom: 1em; }
-    .prose-styles p:last-child { margin-bottom: 0; }
-    .prose-styles strong { color: rgb(var(--color-text-primary)); font-weight: 600; }
-    .prose-styles em { font-style: italic; }
-    .prose-styles ul, .prose-styles ol { margin-left: 1.5rem; margin-bottom: 1rem; padding-left: 1rem;}
-    .prose-styles ul { list-style-type: disc; }
-    .prose-styles ol { list-style-type: decimal; }
-    .prose-styles li { margin-bottom: 0.25rem; }
-    .prose-styles pre {
-        background-color: rgb(var(--color-bg-primary) / 0.8);
-        color: rgb(var(--color-text-secondary));
-        padding: 0.75rem;
-        margin-top: 1rem;
-        margin-bottom: 1rem;
-        border-radius: 0.375rem;
-        overflow-x: auto;
-        font-size: 0.875em;
-        line-height: 1.25rem;
-    }
-    .prose-styles pre code.hljs {
-      background-color: transparent;
-      padding: 0;
-    }
-    .prose-styles code {
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    }
-    .prose-styles :not(pre) > code {
-        background-color: rgb(var(--color-bg-tertiary) / 0.7);
-        color: rgb(var(--color-accent-secondary));
-        padding: 0.125em 0.25em;
-        border-radius: 0.25rem;
-        font-size: 0.9em;
-    }
-</style>
- <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            'bg-primary': 'rgb(var(--color-bg-primary) / <alpha-value>)',
-            'bg-secondary': 'rgb(var(--color-bg-secondary) / <alpha-value>)',
-            'bg-tertiary': 'rgb(var(--color-bg-tertiary) / <alpha-value>)',
-            'border-primary': 'rgb(var(--color-border-primary) / <alpha-value>)',
-            'border-secondary': 'rgb(var(--color-border-secondary) / <alpha-value>)',
-            'text-primary': 'rgb(var(--color-text-primary) / <alpha-value>)',
-            'text-secondary': 'rgb(var(--color-text-secondary) / <alpha-value>)',
-            'text-tertiary': 'rgb(var(--color-text-tertiary) / <alpha-value>)',
-            'accent-primary': 'rgb(var(--color-accent-primary) / <alpha-value>)',
-            'accent-primary-hover': 'rgb(var(--color-accent-primary-hover) / <alpha-value>)',
-            'accent-secondary': 'rgb(var(--color-accent-secondary) / <alpha-value>)',
-            'accent-secondary-hover': 'rgb(var(--color-accent-secondary-hover) / <alpha-value>)',
-          }
-        }
-      }
-    }
   </script>
 </head>
   <body class="bg-bg-primary transition-colors duration-300">

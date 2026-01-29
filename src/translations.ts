@@ -1,7 +1,7 @@
 export const translations = {
     en: {
       app: {
-        title: 'PromptCraft Pro',
+        title: 'PromptCraft',
         subtitle: 'Visually build, test, and refine your AI prompts.',
       },
       steps: {
